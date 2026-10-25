@@ -7,6 +7,7 @@ import os
 import re
 import ssl
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -22,8 +23,9 @@ YT_DLP = "yt-dlp"
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
 COOKIE_MAX_AGE = 1800
-SUBSCRIPTIONS_MAX_AGE_DAYS = 8
-SUBSCRIPTIONS_MAX_VIDEOS = 200
+SUBSCRIPTIONS_DAYS = 8
+SUBSCRIPTIONS_MORE_DAYS = 7
+SUBSCRIPTIONS_VIDEOS_PER_DAY = 25
 
 for _d in (DOWNLOAD_DIR, CACHE_DIR, TRANSCRIPT_DIR, CAPTION_DIR):
     os.makedirs(_d, exist_ok=True)
@@ -94,6 +96,25 @@ def _int(value):
     return int(value) if value.isdigit() else None
 
 
+def _video_fields(channel_field="channel"):
+    return f"%(id)s\t%(title)s\t%(duration)s\t%(timestamp)s\t%({channel_field})s"
+
+
+def _parse_videos(stdout):
+    videos = []
+    for line in stdout.strip().split("\n"):
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        vid, title, duration, timestamp, channel = parts
+        videos.append({
+            "id": vid, "title": title, "duration": _int(duration) or 0,
+            "timestamp": _int(timestamp),
+            "channel": "" if channel == "NA" else channel,
+        })
+    return videos
+
+
 def fetch_watch_later():
     """Watch Later in playlist order, or None when the fetch fails."""
     result = subprocess.run(
@@ -102,58 +123,84 @@ def fetch_watch_later():
          # The playlist only carries relative dates ("3 years ago"); this
          # option converts them to approximate timestamps.
          "--extractor-args", "youtubetab:approximate_date",
-         "--print", "%(id)s\t%(title)s\t%(duration)s\t%(timestamp)s\t%(channel)s",
+         "--print", _video_fields(),
          "https://www.youtube.com/playlist?list=WL"],
         capture_output=True, text=True, timeout=90,
     )
     if result.returncode != 0:
         print(f"[load] Watch Later failed:\n{result.stderr.strip()[-1000:]}")
         return None
-    videos = []
-    for line in result.stdout.strip().split("\n"):
-        parts = line.split("\t")
-        if len(parts) != 5:
-            continue
-        vid, title, duration, timestamp, channel = parts
-        videos.append({
-            "id": vid, "title": title, "duration": _int(duration) or 0,
-            "timestamp": _int(timestamp),
-            "channel": "" if channel == "NA" else channel,
-        })
+    videos = _parse_videos(result.stdout)
     return videos
 
 
-def fetch_subscriptions():
-    """Recent uploads from the subscriptions feed, newest first, or None when
-    the fetch fails."""
-    cutoff = int(time.time()) - SUBSCRIPTIONS_MAX_AGE_DAYS * 86400
+def fetch_subscriptions(days):
+    """Uploads from the subscriptions feed in the past `days` days, newest
+    first, as (videos, reached_end). videos is None when the fetch fails."""
+    cutoff = int(time.time()) - days * 86400
+    max_videos = days * SUBSCRIPTIONS_VIDEOS_PER_DAY
     result = subprocess.run(
         [YT_DLP, "--ignore-config", "--cookies-from-browser", "safari",
-         "--flat-playlist", "--playlist-end", str(SUBSCRIPTIONS_MAX_VIDEOS),
+         "--flat-playlist", "--playlist-end", str(max_videos),
          "--extractor-args", "youtubetab:approximate_date",
          # The feed is newest first, so stop at the first video past the
          # cutoff. ">=?" lets entries without a date (live streams) through.
          "--break-match-filters", f"timestamp>=?{cutoff}",
-         "--print", "%(id)s\t%(title)s\t%(duration)s\t%(timestamp)s\t%(channel)s",
+         "--print", _video_fields(),
          "https://www.youtube.com/feed/subscriptions"],
         capture_output=True, text=True, timeout=120,
     )
-    # 101 is yt-dlp's exit code for stopping at --break-match-filters.
+    # 101 is yt-dlp's exit code for stopping at --break-match-filters, which
+    # means older uploads exist.
     if result.returncode not in (0, 101):
         print(f"[load] subscriptions failed:\n{result.stderr.strip()[-1000:]}")
+        return None, False
+    videos = _parse_videos(result.stdout)
+    return videos, result.returncode == 0 and len(videos) < max_videos
+
+
+def fetch_channel_videos(channel_id, count):
+    """The channel's newest `count` uploads as (videos, reached_end). videos
+    is None when the fetch fails."""
+    result = subprocess.run(
+        [YT_DLP, "--ignore-config", "--cookies-from-browser", "safari",
+         "--flat-playlist", "--playlist-end", str(count),
+         "--extractor-args", "youtubetab:approximate_date",
+         # Channel tab entries leave "channel" empty.
+         "--print", _video_fields("playlist_channel"),
+         f"https://www.youtube.com/channel/{channel_id}/videos"],
+        capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode != 0:
+        print(f"[load] channel {channel_id} failed:\n{result.stderr.strip()[-1000:]}")
+        return None, False
+    videos = _parse_videos(result.stdout)
+    return videos, len(videos) < count
+
+
+def fetch_channels():
+    """Subscribed channels sorted by name, or None when the fetch fails."""
+    result = subprocess.run(
+        [YT_DLP, "--ignore-config", "--cookies-from-browser", "safari",
+         "--flat-playlist",
+         "--print", "%(channel_id)s\t%(title)s\t%(thumbnails.-1.url)s",
+         "https://www.youtube.com/feed/channels"],
+        capture_output=True, text=True, timeout=90,
+    )
+    if result.returncode != 0:
+        print(f"[load] channels failed:\n{result.stderr.strip()[-1000:]}")
         return None
-    videos = []
+    channels = []
     for line in result.stdout.strip().split("\n"):
         parts = line.split("\t")
-        if len(parts) != 5:
+        if len(parts) != 3:
             continue
-        vid, title, duration, timestamp, channel = parts
-        videos.append({
-            "id": vid, "title": title, "duration": _int(duration) or 0,
-            "timestamp": _int(timestamp),
-            "channel": "" if channel == "NA" else channel,
-        })
-    return videos
+        channel_id, name, avatar = parts
+        if avatar.startswith("//"):
+            avatar = "https:" + avatar
+        channels.append({"id": channel_id, "name": name,
+                         "avatar": "" if avatar == "NA" else avatar})
+    return sorted(channels, key=lambda c: c["name"].casefold())
 
 
 def fetch_set_video_ids():
@@ -175,16 +222,17 @@ def fetch_set_video_ids():
     return mappings
 
 
-def _edit_watch_later(action, log_tag):
+def _innertube_post(endpoint, body, log_tag):
+    """POST to YouTube's web client API as the signed-in Safari user. Returns
+    the parsed response, or None on an HTTP error."""
     cookies = _load_cookies()
     payload = json.dumps({
         "context": {"client": {"clientName": "WEB",
                                "clientVersion": _get_client_version()}},
-        "actions": [action],
-        "playlistId": "WL",
+        **body,
     }).encode()
     req = urllib.request.Request(
-        "https://www.youtube.com/youtubei/v1/browse/edit_playlist",
+        f"https://www.youtube.com/youtubei/v1/{endpoint}",
         data=payload, method="POST",
     )
     req.add_header("Cookie", "; ".join(f"{k}={v}" for k, v in cookies.items()))
@@ -197,11 +245,32 @@ def _edit_watch_later(action, log_tag):
         body = urllib.request.urlopen(req, context=_ssl_ctx(), timeout=20).read().decode()
     except urllib.error.HTTPError as e:
         print(f"[{log_tag}] HTTP {e.code}: {e.read().decode()[:500]}")
+        return None
+    return json.loads(body)
+
+
+def _edit_watch_later(action, log_tag):
+    response = _innertube_post(
+        "browse/edit_playlist", {"actions": [action], "playlistId": "WL"}, log_tag)
+    if response is None:
         return False
-    status = json.loads(body).get("status")
+    status = response.get("status")
     if status != "STATUS_SUCCEEDED":
         print(f"[{log_tag}] unexpected status: {status}")
     return status == "STATUS_SUCCEEDED"
+
+
+def set_subscribed(channel_id, subscribed):
+    """Subscribe to or unsubscribe from a channel. Returns True when YouTube
+    confirms the new state."""
+    endpoint = "subscription/subscribe" if subscribed else "subscription/unsubscribe"
+    response = _innertube_post(endpoint, {"channelIds": [channel_id]}, "subscribe")
+    for action in (response or {}).get("actions", []):
+        update = action.get("updateSubscribeButtonAction")
+        if update:
+            return update.get("subscribed") == subscribed
+    print(f"[subscribe] no subscription state in response for {channel_id}")
+    return False
 
 
 def remove_from_watch_later(video_id, set_video_id):
@@ -243,42 +312,99 @@ def delete_local_files(video_id):
             pass
 
 
-def download(video_id, progress_cb):
-    """Download at up to 1080p, anonymously first because signed-in requests
-    can be limited to 360p. Returns (ok, last output lines)."""
-    ok, output = _run_download(video_id, [], progress_cb)
-    if not ok:
-        ok, output = _run_download(
-            video_id, ["--cookies-from-browser", "safari"], progress_cb
-        )
-    for f in os.listdir(DOWNLOAD_DIR):
-        if f"[{video_id}]" in f and f.endswith(".vtt"):
-            os.remove(os.path.join(DOWNLOAD_DIR, f))
-    return ok, output
+# Printed once before downloading: the size of each stream that will be
+# fetched, so progress can cover the video and audio streams together.
+_SIZES_TEMPLATE = "before_dl:SIZES " + " ".join([
+    "%(requested_formats.0.filesize,requested_formats.0.filesize_approx,filesize,filesize_approx)s",
+    "%(requested_formats.1.filesize,requested_formats.1.filesize_approx)s",
+])
+_PROGRESS_TEMPLATE = ("download:PROGRESS %(progress.downloaded_bytes)s "
+                      "%(progress.total_bytes,progress.total_bytes_estimate)s "
+                      "%(progress.filename)s")
 
 
-def _run_download(video_id, cookie_args, progress_cb):
-    proc = subprocess.Popen(
-        [YT_DLP, "--ignore-config", "--ignore-errors", "--newline",
-         *cookie_args,
-         # H.264 and AAC play in every browser.
-         "-f", "bv*[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]"
-               "/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b",
-         "--write-auto-subs", "--sub-langs", "en.*", "--embed-subs",
-         "--embed-chapters", "--merge-output-format", "mp4",
-         "-o", os.path.join(DOWNLOAD_DIR, "%(title)s [%(id)s].%(ext)s"),
-         f"https://www.youtube.com/watch?v={video_id}"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-    )
-    tail = []
-    for line in proc.stdout:
-        line = line.rstrip()
-        tail = (tail + [line])[-40:]
-        m = re.search(r'\[download\]\s+([\d.]+)%', line)
-        if m:
-            progress_cb(float(m.group(1)))
-    proc.wait()
-    return proc.returncode == 0 and video_id in local_files(), "\n".join(tail)
+class Download:
+    """One video download that can be cancelled from another thread."""
+
+    def __init__(self, video_id, progress_cb):
+        self.video_id = video_id
+        self.progress_cb = progress_cb
+        self.cancelled = False
+        self._proc = None
+        self._lock = threading.Lock()
+
+    def run(self):
+        """Download at up to 1080p, anonymously first because signed-in
+        requests can be limited to 360p. Returns (ok, last output lines)."""
+        ok, output = self._run([])
+        if not ok and not self.cancelled:
+            ok, output = self._run(["--cookies-from-browser", "safari"])
+        if self.cancelled:
+            delete_local_files(self.video_id)
+            return False, output
+        for f in os.listdir(DOWNLOAD_DIR):
+            if f"[{self.video_id}]" in f and f.endswith(".vtt"):
+                os.remove(os.path.join(DOWNLOAD_DIR, f))
+        return ok, output
+
+    def cancel(self):
+        with self._lock:
+            self.cancelled = True
+            if self._proc:
+                self._proc.terminate()
+
+    def _run(self, cookie_args):
+        with self._lock:
+            if self.cancelled:
+                return False, ""
+            self._proc = proc = subprocess.Popen(
+                [YT_DLP, "--ignore-config", "--ignore-errors", "--newline",
+                 "--no-simulate", "--progress",
+                 *cookie_args,
+                 # H.264 and AAC play in every browser.
+                 "-f", "bv*[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]"
+                       "/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b",
+                 "--write-auto-subs", "--sub-langs", "en.*", "--embed-subs",
+                 "--embed-chapters", "--merge-output-format", "mp4",
+                 "--print", _SIZES_TEMPLATE,
+                 "--progress-template", _PROGRESS_TEMPLATE,
+                 "-o", os.path.join(DOWNLOAD_DIR, "%(title)s [%(id)s].%(ext)s"),
+                 f"https://www.youtube.com/watch?v={self.video_id}"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+            )
+        sizes = []
+        streams = {}  # filename -> [downloaded, total], in download order
+        tail = []
+        for line in proc.stdout:
+            line = line.rstrip()
+            if line.startswith("SIZES "):
+                sizes = [_int(v) for v in line.split()[1:]]
+            elif line.startswith("PROGRESS "):
+                _, done, total, name = line.split(" ", 3)
+                if not name.endswith(".vtt"):
+                    streams[name] = [_int(done) or 0, _int(total)]
+                    pct = _overall_percent(sizes, list(streams.values()))
+                    if pct is not None:
+                        self.progress_cb(pct)
+            else:
+                tail = (tail + [line])[-40:]
+        proc.wait()
+        with self._lock:
+            self._proc = None
+        return proc.returncode == 0 and self.video_id in local_files(), "\n".join(tail)
+
+
+def _overall_percent(sizes, streams):
+    """Percent of all streams downloaded. A stream's own reported total
+    replaces the size printed before the download once it starts."""
+    done = total = 0
+    for i in range(max(len(sizes), len(streams))):
+        stream_done, stream_total = streams[i] if i < len(streams) else (0, None)
+        size = stream_total or (sizes[i] if i < len(sizes) else None)
+        if size:
+            done += stream_done
+            total += size
+    return min(100.0, 100 * done / total) if total else None
 
 
 _TIMING = re.compile(r"(\d+):(\d+):(\d+)[,.](\d+)\s+-->")

@@ -13,7 +13,7 @@ import time
 import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import youtube
 
@@ -23,6 +23,10 @@ WEB_DIR = os.path.join(youtube.ROOT, "web")
 AUTO_REFRESH_INTERVAL = 300
 DOWNLOAD_CONCURRENCY = 3
 CHUNK = 1 << 20
+CHANNELS_MAX_AGE = 3600
+CHANNEL_PAGE = 30
+CHANNEL_VIDEOS_MAX_AGE = 600
+OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
 
 
 class Library:
@@ -32,8 +36,19 @@ class Library:
         self.lock = threading.Lock()
         self.watch_later = []
         self.subscriptions = []
+        self.subscription_days = youtube.SUBSCRIPTIONS_DAYS
+        self.subscriptions_end = False
+        self.loading_more = False
+        self.channels = None
+        self.channels_fetched_at = 0
+        self.channels_lock = threading.Lock()
+        self.channel_videos = {}  # channel id -> {"videos", "count", "end", "fetched_at"}
+        self.channel_videos_lock = threading.Lock()
         self.set_video_ids = {}
         self.downloads = {}  # id -> {"status", "progress", "message"}
+        # Videos downloaded without being saved to Watch Later, by id.
+        self.other_downloads = _read_json(OTHER_DOWNLOADS_FILE, {})
+        self.active = {}  # id -> youtube.Download
         self.removed = set()
         self.loading = False
         self.error = None
@@ -41,12 +56,18 @@ class Library:
 
     def snapshot(self):
         with self.lock:
+            watch_later_ids = {v["id"] for v in self.watch_later}
             return {
                 "loading": self.loading,
                 "error": self.error,
                 "watchLater": self.watch_later,
                 "subscriptions": self.subscriptions,
+                "subscriptionDays": self.subscription_days,
+                "subscriptionsEnd": self.subscriptions_end,
+                "loadingMore": self.loading_more,
                 "downloads": self.downloads,
+                "otherDownloads": [v for vid, v in self.other_downloads.items()
+                                   if vid not in watch_later_ids],
                 "local": sorted(youtube.local_files()),
             }
 
@@ -59,6 +80,8 @@ class Library:
 
     def _load(self):
         error = None
+        with self.lock:
+            days = self.subscription_days
         try:
             if not youtube.cookies_are_fresh():
                 youtube.extract_cookies()
@@ -66,7 +89,7 @@ class Library:
             if watch_later is None:
                 error = ("Watch Later did not load. Check that Safari is "
                          "signed in to YouTube.")
-            subscriptions = youtube.fetch_subscriptions()
+            subscriptions, subscriptions_end = youtube.fetch_subscriptions(days)
             try:
                 set_video_ids = youtube.fetch_set_video_ids()
             except Exception as e:
@@ -80,7 +103,7 @@ class Library:
             if watch_later is not None:
                 self.watch_later = watch_later
             if subscriptions is not None:
-                self.subscriptions = subscriptions
+                self._set_subscriptions(days, subscriptions, subscriptions_end)
             if set_video_ids is not None:
                 self.set_video_ids = set_video_ids
             self.error = error
@@ -88,9 +111,84 @@ class Library:
         print(f"[load] {len(self.watch_later)} Watch Later, "
               f"{len(self.subscriptions)} subscription uploads")
 
+    def _set_subscriptions(self, days, subscriptions, reached_end):
+        # A fetch for a shorter window than the current one is out of date.
+        if days == self.subscription_days:
+            self.subscriptions = subscriptions
+            self.subscriptions_end = reached_end
+
+    def load_more_subscriptions(self):
+        with self.lock:
+            if self.loading_more or self.subscriptions_end:
+                return
+            self.loading_more = True
+            self.subscription_days += youtube.SUBSCRIPTIONS_MORE_DAYS
+            days = self.subscription_days
+        threading.Thread(
+            target=self._load_more, args=(days,), daemon=True
+        ).start()
+
+    def _load_more(self, days):
+        try:
+            subscriptions, reached_end = youtube.fetch_subscriptions(days)
+        except Exception as e:
+            print(f"[load] more subscriptions error: {e}")
+            subscriptions, reached_end = None, False
+        with self.lock:
+            if subscriptions is not None:
+                self._set_subscriptions(days, subscriptions, reached_end)
+            self.loading_more = False
+
+    def get_channels(self, force=False):
+        with self.channels_lock:
+            stale = time.time() - self.channels_fetched_at > CHANNELS_MAX_AGE
+            if force or self.channels is None or stale:
+                channels = youtube.fetch_channels()
+                if channels is not None:
+                    self.channels = channels
+                    self.channels_fetched_at = time.time()
+            return self.channels
+
+    def set_subscribed(self, channel, subscribed):
+        ok = youtube.set_subscribed(channel["id"], subscribed)
+        if not ok:
+            # Safari rotates YouTube's session cookies, which logs out the
+            # cached copy before COOKIE_MAX_AGE is reached.
+            youtube.extract_cookies()
+            ok = youtube.set_subscribed(channel["id"], subscribed)
+        if ok:
+            with self.channels_lock:
+                channels = [c for c in self.channels or [] if c["id"] != channel["id"]]
+                if subscribed:
+                    channels.append({"id": channel["id"], "name": str(channel.get("name", "")),
+                                     "avatar": str(channel.get("avatar", ""))})
+                self.channels = sorted(channels, key=lambda c: c["name"].casefold())
+        return ok
+
+    def get_channel_videos(self, channel_id, more=False, refresh=False):
+        with self.channel_videos_lock:
+            with self.lock:
+                entry = self.channel_videos.get(channel_id)
+            fresh = entry and time.time() - entry["fetched_at"] < CHANNEL_VIDEOS_MAX_AGE
+            if entry and fresh and not more and not refresh:
+                return entry
+            count = entry["count"] if entry else CHANNEL_PAGE
+            if more and entry:
+                count += CHANNEL_PAGE
+            videos, reached_end = youtube.fetch_channel_videos(channel_id, count)
+            if videos is None:
+                return None
+            entry = {"videos": videos, "count": count, "end": reached_end,
+                     "fetched_at": time.time()}
+            with self.lock:
+                self.channel_videos[channel_id] = entry
+            return entry
+
     def find(self, vid):
         with self.lock:
-            for video in self.watch_later + self.subscriptions:
+            channel_videos = [v for e in self.channel_videos.values() for v in e["videos"]]
+            others = list(self.other_downloads.values())
+            for video in self.watch_later + self.subscriptions + channel_videos + others:
                 if video["id"] == vid:
                     return video
         return None
@@ -149,19 +247,46 @@ class Library:
     def delete_local(self, vid):
         with self.lock:
             self.downloads.pop(vid, None)
+            self._forget_other_download(vid)
         youtube.delete_local_files(vid)
 
-    def download(self, vid):
+    def _remember_other_download(self, vid):
+        video = self.find(vid)
+        with self.lock:
+            if video is None or self._in_watch_later(vid):
+                return
+            self.other_downloads[vid] = {
+                k: video[k] for k in ("id", "title", "duration", "timestamp", "channel")}
+            _write_json(OTHER_DOWNLOADS_FILE, self.other_downloads)
+
+    def _forget_other_download(self, vid):
+        if self.other_downloads.pop(vid, None):
+            _write_json(OTHER_DOWNLOADS_FILE, self.other_downloads)
+
+    def download(self, vid, save_to_watch_later=True):
         with self.lock:
             entry = self.downloads.get(vid)
             if entry and entry["status"] in ("queued", "downloading"):
                 return
-            if vid in youtube.local_files():
+            if vid in self.active or vid in youtube.local_files():
                 return
-            self.downloads[vid] = {"status": "queued", "progress": None,
-                                   "message": None}
-        self.ensure_in_watch_later(vid)
-        threading.Thread(target=self._download, args=(vid,), daemon=True).start()
+            entry = {"status": "queued", "progress": None, "message": None}
+            self.downloads[vid] = entry
+        if save_to_watch_later:
+            self.ensure_in_watch_later(vid)
+        else:
+            self._remember_other_download(vid)
+        threading.Thread(
+            target=self._download, args=(vid, entry), daemon=True
+        ).start()
+
+    def cancel(self, vid):
+        with self.lock:
+            self.downloads.pop(vid, None)
+            self._forget_other_download(vid)
+            job = self.active.get(vid)
+        if job:
+            job.cancel()
 
     def download_all(self):
         with self.lock:
@@ -169,23 +294,26 @@ class Library:
         for vid in ids:
             self.download(vid)
 
-    def _download(self, vid):
+    def _download(self, vid, entry):
+        def progress(pct):
+            with self.lock:
+                entry["progress"] = pct
+
         with self.download_slots:
             with self.lock:
+                if self.downloads.get(vid) is not entry:
+                    return
                 if vid in self.removed:
                     self.downloads.pop(vid, None)
                     return
-                self.downloads[vid]["status"] = "downloading"
-
-            def progress(pct):
-                with self.lock:
-                    entry = self.downloads.get(vid)
-                    if entry:
-                        entry["progress"] = pct
-
-            ok, output = youtube.download(vid, progress)
+                entry["status"] = "downloading"
+                job = self.active[vid] = youtube.Download(vid, progress)
+            ok, output = job.run()
         with self.lock:
+            del self.active[vid]
             removed = vid in self.removed
+            if job.cancelled:
+                return
             if ok:
                 self.downloads.pop(vid, None)
             else:
@@ -196,6 +324,21 @@ class Library:
                 print(f"[download] failed {vid}:\n{output[-1500:]}")
         if ok and removed:
             youtube.delete_local_files(vid)
+
+
+def _read_json(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def _write_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, path)
 
 
 library = Library()
@@ -229,6 +372,18 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/state":
             return self._json(library.snapshot())
+        m = re.fullmatch(r"/api/channel/(UC[\w-]{22})", path)
+        if m:
+            query = parse_qs(urlparse(self.path).query)
+            entry = library.get_channel_videos(
+                m.group(1), more=query.get("more") == ["1"],
+                refresh=query.get("refresh") == ["1"])
+            if entry is None:
+                return self._json({"error": "fetch failed"}, HTTPStatus.BAD_GATEWAY)
+            return self._json({"videos": entry["videos"], "end": entry["end"]})
+        if path == "/api/channels":
+            force = parse_qs(urlparse(self.path).query).get("refresh") == ["1"]
+            return self._json({"channels": library.get_channels(force)})
         m = re.fullmatch(r"/api/transcript/([\w-]{11})", path)
         if m:
             file = youtube.local_files().get(m.group(1))
@@ -262,11 +417,20 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
         except ValueError:
             body = {}
+        if path == "/api/subscription":
+            channel = body.get("channel") or {}
+            if not re.fullmatch(r"UC[\w-]{22}", str(channel.get("id", ""))):
+                return self._json({"error": "bad channel"}, HTTPStatus.BAD_REQUEST)
+            ok = library.set_subscribed(channel, body.get("subscribed") is True)
+            return self._json({"ok": ok, "channels": library.channels})
         vid = body.get("id", "")
         actions = {
             "/api/refresh": lambda: library.refresh(),
             "/api/download-all": lambda: library.download_all(),
-            "/api/download": lambda: library.download(vid),
+            "/api/subscriptions/more": lambda: library.load_more_subscriptions(),
+            "/api/download": lambda: library.download(
+                vid, save_to_watch_later=body.get("watchLater") is not False),
+            "/api/cancel": lambda: library.cancel(vid),
             "/api/watch-later/add": lambda: library.ensure_in_watch_later(vid),
             "/api/watch-later/remove": lambda: library.remove(vid),
             "/api/delete-local": lambda: library.delete_local(vid),
@@ -274,7 +438,8 @@ class Handler(BaseHTTPRequestHandler):
         action = actions.get(path)
         if action is None:
             return self._not_found()
-        if path not in ("/api/refresh", "/api/download-all") and not re.fullmatch(
+        if path not in ("/api/refresh", "/api/download-all",
+                        "/api/subscriptions/more") and not re.fullmatch(
                 r"[\w-]{11}", vid):
             return self._json({"error": "bad id"}, HTTPStatus.BAD_REQUEST)
         action()
