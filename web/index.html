@@ -24,33 +24,37 @@
         <li><button data-section="watchLater">Watch Later <span class="count"></span></button></li>
         <li><button data-section="downloaded">Downloaded <span class="count"></span></button></li>
       </ul>
+      <h2 class="rail-heading">Channels</h2>
+      <ul class="channel-list"></ul>
     </nav>
 
     <main class="library">
       <header class="toolbar">
         <h1 class="section-title"></h1>
+        <button class="subscribe" hidden></button>
         <p class="status" role="status"></p>
         <div class="tools">
-          <button class="icon-btn" data-action="download-all" title="Download every Watch Later video"></button>
-          <button class="icon-btn" data-action="refresh" title="Refresh"></button>
-          <div class="segmented" role="group" aria-label="Layout">
+          <div class="pill">
+            <button class="icon-btn" data-action="open-channel" title="Open channel on YouTube"></button>
+            <button class="icon-btn" data-action="download-all" title="Download every Watch Later video"></button>
+            <button class="icon-btn" data-action="refresh" title="Refresh"></button>
+          </div>
+          <div class="pill segmented" role="group" aria-label="Layout">
             <button class="icon-btn" data-view="grid" title="Grid"></button>
             <button class="icon-btn" data-view="list" title="List"></button>
           </div>
-          <label class="sort">
-            <span class="visually-hidden">Sort by</span>
-            <select data-action="sort">
-              <option value="default">Playlist order</option>
-              <option value="title">Title</option>
-              <option value="duration">Length</option>
-              <option value="published">Date published</option>
-            </select>
-          </label>
-          <button class="icon-btn" data-action="direction" title="Reverse order"></button>
+          <div class="pill">
+            <label class="sort">
+              <span class="visually-hidden">Sort by</span>
+              <select data-action="sort"></select>
+            </label>
+            <button class="icon-btn" data-action="direction" title="Reverse order"></button>
+          </div>
         </div>
       </header>
       <div class="videos" aria-live="polite"></div>
       <p class="empty" hidden></p>
+      <button class="load-more" hidden>Load more</button>
     </main>
   </div>
 
@@ -62,19 +66,21 @@
     <div class="stage">
       <div class="screen">
         <video playsinline></video>
+        <div class="flash" aria-hidden="true"></div>
       </div>
       <aside class="transcript" hidden aria-label="Transcript">
         <ol class="transcript-lines"></ol>
         <p class="transcript-empty" hidden></p>
+        <button class="resync" data-action="resync" hidden>Back to current line</button>
       </aside>
     </div>
     <footer class="controls">
-      <button class="icon-btn" data-action="play" title="Play or pause (Space)"></button>
-      <button class="icon-btn cc" data-action="captions" title="Subtitles"></button>
-      <button class="icon-btn" data-action="transcript" title="Transcript"></button>
+      <button class="icon-btn play-btn" data-action="play" title="Play or pause (Space)"></button>
       <span class="time elapsed">0:00</span>
       <input class="scrubber" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position">
       <span class="time total">0:00</span>
+      <button class="icon-btn cc" data-action="captions" title="Subtitles"></button>
+      <button class="icon-btn" data-action="transcript" title="Transcript"></button>
       <label class="speed">
         <span class="speed-value">1x</span>
         <input type="range" min="0.5" max="3" step="0.25" value="1" aria-label="Playback speed">
