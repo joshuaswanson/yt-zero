@@ -961,7 +961,10 @@ $('[data-action="transcript"]').innerHTML = icon("transcript");
 applySpeed();
 
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
-window.addEventListener("pagehide", () => rememberPosition(true));
+window.addEventListener("pagehide", () => {
+  rememberPosition(true);
+  navigator.sendBeacon("/api/bye");
+});
 render();
 poll();
 loadChannels();

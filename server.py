@@ -27,6 +27,8 @@ CHANNELS_MAX_AGE = 3600
 CHANNEL_PAGE = 30
 CHANNEL_VIDEOS_MAX_AGE = 600
 OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
+CLOSE_GRACE = 5
+IDLE_LIMIT = 600
 
 
 class Library:
@@ -280,6 +282,12 @@ class Library:
             target=self._download, args=(vid, entry), daemon=True
         ).start()
 
+    def cancel_all(self):
+        with self.lock:
+            jobs = list(self.active.values())
+        for job in jobs:
+            job.cancel()
+
     def cancel(self, vid):
         with self.lock:
             self.downloads.pop(vid, None)
@@ -344,6 +352,41 @@ def _write_json(path, data):
 library = Library()
 
 
+class Presence:
+    """Tracks whether the page is still open, so a server launched for one
+    window can stop when that window closes. Reloading the page sends a new
+    request within CLOSE_GRACE seconds, which keeps the server running."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.last_seen = time.time()
+        self.closed_at = None
+
+    def seen(self):
+        with self.lock:
+            self.last_seen = time.time()
+            self.closed_at = None
+
+    def closed(self):
+        with self.lock:
+            self.closed_at = time.time()
+
+    def watch(self):
+        while True:
+            time.sleep(1)
+            now = time.time()
+            with self.lock:
+                closed = self.closed_at and now - self.closed_at > CLOSE_GRACE
+                idle = now - self.last_seen > IDLE_LIMIT
+            if closed or idle:
+                print("[exit] page closed" if closed else "[exit] page idle")
+                library.cancel_all()
+                os._exit(0)
+
+
+presence = Presence()
+
+
 def auto_refresh():
     while True:
         time.sleep(AUTO_REFRESH_INTERVAL)
@@ -369,6 +412,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
     def do_GET(self):
+        presence.seen()
         path = urlparse(self.path).path
         if path == "/api/state":
             return self._json(library.snapshot())
@@ -411,7 +455,11 @@ class Handler(BaseHTTPRequestHandler):
         return self._static(path)
 
     def do_POST(self):
+        presence.seen()
         path = urlparse(self.path).path
+        if path == "/api/bye":
+            presence.closed()
+            return self._json({})
         length = int(self.headers.get("Content-Length") or 0)
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
@@ -497,6 +545,8 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     library.refresh()
     threading.Thread(target=auto_refresh, daemon=True).start()
+    if os.environ.get("WATCHBAR_EXIT_WHEN_CLOSED"):
+        threading.Thread(target=presence.watch, daemon=True).start()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = f"http://{HOST}:{PORT}/"
     print(f"Watchbar web is running at {url}")

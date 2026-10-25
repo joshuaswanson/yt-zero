@@ -28,6 +28,8 @@ A browser interface for your YouTube Watch Later playlist and subscriptions. It 
 
 This starts the server at http://127.0.0.1:8765 and opens it in your browser. The page works while the server runs.
 
+To use WatchBar as its own window, run `./window.sh`, or a `.command` file that runs it. It starts the server and opens the app in a separate Google Chrome window with its own profile. Closing that window stops the server and any downloads in progress. A reload keeps the server running.
+
 Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are stored in the browser.
 
 ## Fonts
