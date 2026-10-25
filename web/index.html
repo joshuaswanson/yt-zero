@@ -77,7 +77,13 @@
     <footer class="controls">
       <button class="icon-btn play-btn" data-action="play" title="Play or pause (Space)"></button>
       <span class="time elapsed">0:00</span>
-      <input class="scrubber" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position">
+      <div class="scrub">
+        <input class="scrubber" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position">
+        <div class="scrub-preview" hidden aria-hidden="true">
+          <canvas></canvas>
+          <span class="scrub-time"></span>
+        </div>
+      </div>
       <span class="time total">0:00</span>
       <button class="icon-btn cc" data-action="captions" title="Subtitles"></button>
       <button class="icon-btn" data-action="transcript" title="Transcript"></button>

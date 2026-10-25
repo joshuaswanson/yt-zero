@@ -342,7 +342,20 @@ input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; backgro
 input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--fill-color); }
 input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--night-ink); }
 
-.scrubber { flex: 1; min-width: 80px; --fill-color: var(--signal); --fill: 0%; }
+.scrub { position: relative; display: flex; flex: 1; min-width: 80px; }
+.scrubber { width: 100%; --fill-color: var(--signal); --fill: 0%; }
+.scrub-preview {
+  position: absolute; bottom: calc(100% + 12px); width: 176px;
+  transform: translateX(-50%); pointer-events: none;
+  border-radius: 12px; overflow: hidden; background: #000;
+  box-shadow: 0 0 0 2px var(--night-ink), 0 10px 24px -8px rgba(0, 0, 0, 0.8);
+}
+.scrub-preview canvas { display: block; width: 100%; height: auto; }
+.scrub-time {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+  padding: 1px 8px; border-radius: 999px; background: rgba(13, 20, 25, 0.82);
+  color: #fff; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
+}
 
 .controls .cc { margin-left: 10px; }
 .speed { display: flex; align-items: center; gap: 10px; margin-left: 8px; }

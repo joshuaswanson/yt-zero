@@ -511,6 +511,13 @@ function buildCard(video, mode) {
 const theater = $(".theater");
 const videoEl = $(".theater video");
 const scrubber = $(".scrubber");
+const scrubPreview = $(".scrub-preview");
+const previewCanvas = $(".scrub-preview canvas");
+const previewVideo = document.createElement("video");
+previewVideo.muted = true;
+previewVideo.preload = "auto";
+let previewTarget = null;
+let previewSeeking = false;
 const speedInput = $(".speed input");
 const linesEl = $(".transcript-lines");
 const flashEl = $(".flash");
@@ -540,6 +547,8 @@ async function openPlayer(id) {
   theater.hidden = false;
   for (const t of videoEl.querySelectorAll("track")) t.remove();
   videoEl.src = `/media/${id}.mp4`;
+  previewVideo.src = videoEl.src;
+  previewCanvas.getContext("2d").clearRect(0, 0, previewCanvas.width, previewCanvas.height);
   const track = document.createElement("track");
   track.kind = "subtitles";
   track.srclang = "en";
@@ -564,6 +573,9 @@ function closePlayer() {
   videoEl.pause();
   videoEl.removeAttribute("src");
   videoEl.load();
+  previewVideo.removeAttribute("src");
+  previewVideo.load();
+  scrubPreview.hidden = true;
   playing = null;
   theater.hidden = true;
   document.title = "WatchBar";
@@ -763,6 +775,49 @@ scrubber.addEventListener("input", () => {
   videoEl.currentTime = Number(scrubber.value);
 });
 scrubber.addEventListener("change", () => { scrubbing = false; });
+
+const SCRUB_THUMB = 16;
+const PREVIEW_WIDTH = 176;
+
+scrubber.addEventListener("pointermove", (e) => {
+  const duration = Number(scrubber.max);
+  if (!playing || e.pointerType === "touch" || !(duration > 0)) return;
+  const rect = scrubber.getBoundingClientRect();
+  const track = rect.width - SCRUB_THUMB;
+  const fraction = Math.min(1, Math.max(0, (e.clientX - rect.left - SCRUB_THUMB / 2) / track));
+  const time = fraction * duration;
+  $(".scrub-time").textContent = fmtDuration(time);
+  const half = PREVIEW_WIDTH / 2 + 4;
+  const x = Math.min(window.innerWidth - half, Math.max(half, e.clientX));
+  scrubPreview.style.left = `${x - rect.left}px`;
+  scrubPreview.hidden = false;
+  requestPreview(time);
+});
+scrubber.addEventListener("pointerleave", () => { scrubPreview.hidden = true; });
+
+// Seek only to the latest hovered time once the previous seek finishes, so
+// the preview keeps up with fast mouse movement.
+function requestPreview(time) {
+  previewTarget = time;
+  if (!previewSeeking) seekPreview();
+}
+
+function seekPreview() {
+  if (previewTarget === null) return;
+  previewSeeking = true;
+  previewVideo.currentTime = previewTarget;
+  previewTarget = null;
+}
+
+previewVideo.addEventListener("loadedmetadata", () => {
+  previewCanvas.width = PREVIEW_WIDTH * devicePixelRatio;
+  previewCanvas.height = Math.round(previewCanvas.width * previewVideo.videoHeight / previewVideo.videoWidth);
+});
+previewVideo.addEventListener("seeked", () => {
+  previewCanvas.getContext("2d").drawImage(previewVideo, 0, 0, previewCanvas.width, previewCanvas.height);
+  previewSeeking = false;
+  seekPreview();
+});
 
 function applySpeed() {
   speedInput.value = settings.speed;
