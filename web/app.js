@@ -127,7 +127,7 @@ async function poll() {
   try {
     applyState(await api("/api/state"));
   } catch {
-    state.error = "Lost the connection to the server. Start it again with ./run.sh.";
+    state.error = "Lost the connection to the server. Open WatchBar again to restart it.";
     render();
   }
   const busy = state.loading || state.loadingMore || Object.keys(state.downloads || {}).some(

@@ -28,7 +28,7 @@ CHANNEL_PAGE = 30
 CHANNEL_VIDEOS_MAX_AGE = 600
 OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
 CLOSE_GRACE = 5
-IDLE_LIMIT = 600
+IDLE_LIMIT = 1800
 
 
 class Library:
