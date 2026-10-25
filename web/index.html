@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WatchBar</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="rail" aria-label="Sections">
+      <a class="brand" href="#" data-section="watchLater">
+        <svg class="brand-mark" viewBox="0 0 40 46" aria-hidden="true">
+          <rect x="16.5" y="0" width="7" height="7" rx="2" />
+          <circle cx="20" cy="26" r="20" />
+          <circle class="dial" cx="20" cy="26" r="16" />
+          <path class="hand" d="M16 19.5 L16 32.5 L27 26 Z" />
+        </svg>
+        <span>WatchBar</span>
+      </a>
+      <ul class="sections">
+        <li><button data-section="subscriptions">Subscriptions <span class="count"></span></button></li>
+        <li><button data-section="watchLater">Watch Later <span class="count"></span></button></li>
+        <li><button data-section="downloaded">Downloaded <span class="count"></span></button></li>
+      </ul>
+    </nav>
+
+    <main class="library">
+      <header class="toolbar">
+        <h1 class="section-title"></h1>
+        <p class="status" role="status"></p>
+        <div class="tools">
+          <button class="icon-btn" data-action="download-all" title="Download every Watch Later video"></button>
+          <button class="icon-btn" data-action="refresh" title="Refresh"></button>
+          <div class="segmented" role="group" aria-label="Layout">
+            <button class="icon-btn" data-view="grid" title="Grid"></button>
+            <button class="icon-btn" data-view="list" title="List"></button>
+          </div>
+          <label class="sort">
+            <span class="visually-hidden">Sort by</span>
+            <select data-action="sort">
+              <option value="default">Playlist order</option>
+              <option value="title">Title</option>
+              <option value="duration">Length</option>
+              <option value="published">Date published</option>
+            </select>
+          </label>
+          <button class="icon-btn" data-action="direction" title="Reverse order"></button>
+        </div>
+      </header>
+      <div class="videos" aria-live="polite"></div>
+      <p class="empty" hidden></p>
+    </main>
+  </div>
+
+  <section class="theater" hidden aria-label="Player">
+    <header class="theater-bar">
+      <button class="icon-btn" data-action="close-player" title="Back to library (Esc)"></button>
+      <h2 class="now-playing"></h2>
+    </header>
+    <div class="stage">
+      <div class="screen">
+        <video playsinline></video>
+      </div>
+      <aside class="transcript" hidden aria-label="Transcript">
+        <ol class="transcript-lines"></ol>
+        <p class="transcript-empty" hidden></p>
+      </aside>
+    </div>
+    <footer class="controls">
+      <button class="icon-btn" data-action="play" title="Play or pause (Space)"></button>
+      <button class="icon-btn cc" data-action="captions" title="Subtitles"></button>
+      <button class="icon-btn" data-action="transcript" title="Transcript"></button>
+      <span class="time elapsed">0:00</span>
+      <input class="scrubber" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position">
+      <span class="time total">0:00</span>
+      <label class="speed">
+        <span class="speed-value">1x</span>
+        <input type="range" min="0.5" max="3" step="0.25" value="1" aria-label="Playback speed">
+      </label>
+    </footer>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
