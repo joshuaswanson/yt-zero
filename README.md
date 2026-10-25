@@ -4,11 +4,12 @@ A browser interface for your YouTube Watch Later playlist and subscriptions. It 
 
 ## Features
 
-- Subscriptions, Watch Later, and Downloaded sections
-- Grid or list layout, sorted by playlist order, title, length, or date published
-- Download a single video or all of Watch Later, three at a time
+- Subscriptions, Watch Later, and Downloaded sections, with a Load more button that reaches further back in Subscriptions
+- A list of your subscribed channels in the sidebar. Each channel opens a page of its videos, where you can also subscribe or unsubscribe
+- Grid or list layout, sorted by date added, date published, title, or length
+- Download a single video or all of Watch Later, three at a time, and stop a download in progress
 - Remove videos from Watch Later, which also deletes their downloads
-- Downloading a subscription video saves it to Watch Later first
+- Downloading a subscription video saves it to Watch Later first. Videos watched from a channel page download without being saved to Watch Later
 - Player with play and pause (click the video or press space), a scrubber, 5 second skips with the arrow keys, subtitles, and a 0.5x to 3x speed slider
 - Transcript sidebar that follows along, seeks when you click a line, and marks chapters and speaker changes
 - Remembers where you stopped in each video and shows it as a red bar on the thumbnail
@@ -31,4 +32,8 @@ Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in 
 
 ## Fonts
 
-Barlow and Barlow Condensed by Jeremy Tribby, under the SIL Open Font License (`web/fonts/OFL.txt`).
+Rubik by Hubert and Fischer, under the SIL Open Font License (`web/fonts/OFL.txt`).
+
+## Icons
+
+[Phosphor Icons](https://phosphoricons.com/) by Helena Zhang and Tobias Fried, under the MIT License.
