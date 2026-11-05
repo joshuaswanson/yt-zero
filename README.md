@@ -2,7 +2,7 @@
 
 YouTube with zero ads, zero Shorts, and zero lag. Just the videos.
 
-YouTube Zero is a local web app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos locally and plays them in the page with a transcript.
+YouTube Zero is a native Mac app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos and plays them with a transcript.
 
 ## Features
 
@@ -18,36 +18,30 @@ YouTube Zero is a local web app for your YouTube Watch Later playlist, subscript
 
 ## Requirements
 
-- macOS with Safari signed in to YouTube
-- [uv](https://docs.astral.sh/uv/), [yt-dlp](https://github.com/yt-dlp/yt-dlp), and [ffmpeg](https://ffmpeg.org/) (`brew install uv yt-dlp ffmpeg`)
-- Full Disk Access for YouTube Zero (or for Terminal when you use `run.sh`), so yt-dlp can read Safari's cookies. Turn it on in System Settings, under Privacy & Security, then Full Disk Access
-- Xcode Command Line Tools to build the Mac app (`xcode-select --install`)
+- macOS 15 or later, with Safari signed in to YouTube
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) (`brew install yt-dlp ffmpeg`)
+- Full Disk Access for YouTube Zero, so yt-dlp can read Safari's cookies. Turn it on in System Settings, under Privacy & Security, then Full Disk Access
+- Xcode Command Line Tools to build the app (`xcode-select --install`)
 
 ## Usage
 
-Build the Mac app and install it in `/Applications`:
+Build the app and install it in `/Applications`:
 
 ```bash
 macos/build.sh
 ```
 
-Open YouTube Zero from Applications, Launchpad, or Spotlight. It starts the server in the background and shows the library in its own window. Quitting the app stops the server and any downloads in progress. Links to YouTube open in your default browser. The server log is in `~/Library/Logs/YouTube Zero.log`.
+Open YouTube Zero from Applications, Launchpad, or Spotlight. Links to YouTube open in your default browser. Quitting the app stops any downloads in progress and deletes their partial files.
 
-The app runs the code in this folder, so changes to the server or the web files take effect the next time you open it. Run `macos/build.sh` again after moving this folder or changing anything in `macos/`.
+- Downloads go to `~/Movies/YouTube Zero`.
+- Playback positions, layout settings, transcripts, and cookies are kept in `~/Library/Application Support/YouTube Zero`.
+- The log is in `~/Library/Logs/YouTube Zero.log`.
 
-To use a browser, run:
-
-```bash
-./run.sh
-```
-
-This starts the server at http://127.0.0.1:8765, or at the next free port up to 8784, and opens it in your browser.
-
-Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are saved in `.cache/prefs.json`, so every browser and port shares them.
+The app is built from the Swift sources in `macos/Sources`. Run `macos/build.sh` again after changing them.
 
 ## Fonts
 
-Rubik by Hubert and Fischer, under the SIL Open Font License (`web/fonts/OFL.txt`).
+Rubik by Hubert and Fischer, under the SIL Open Font License (`macos/Resources/OFL.txt`).
 
 ## Icons
 
