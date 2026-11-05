@@ -47,6 +47,7 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var transcriptLoaded = false
     @Published private(set) var lines: [TranscriptLine] = []
     @Published private(set) var rows: [TranscriptRow] = []
+    @Published private(set) var chapters: [Chapter] = []
     @Published private(set) var currentLine: Int?
     @Published var followPaused = false
     @Published private(set) var flash: Flash?
@@ -85,6 +86,7 @@ final class PlayerModel: ObservableObject {
         transcriptLoaded = false
         lines = []
         rows = []
+        chapters = []
         previewImage = nil
 
         let generator = AVAssetImageGenerator(asset: item.asset)
@@ -125,7 +127,8 @@ final class PlayerModel: ObservableObject {
             let transcript = await background { Transcripts.load(videoID: video.id, file: file) }
             guard self.video?.id == video.id else { return }
             lines = transcript.lines
-            rows = Self.rows(transcript)
+            chapters = transcript.chapters.sorted { $0.start < $1.start }
+            rows = Self.rows(lines: lines, chapters: chapters)
             transcriptLoaded = true
             updateCurrentLine()
         }
@@ -152,17 +155,21 @@ final class PlayerModel: ObservableObject {
         player.replaceCurrentItem(with: nil)
     }
 
-    private static func rows(_ transcript: Transcript) -> [TranscriptRow] {
-        var chapters = transcript.chapters[...]
+    private static func rows(lines: [TranscriptLine], chapters: [Chapter]) -> [TranscriptRow] {
+        var chapters = chapters[...]
         var rows: [TranscriptRow] = []
         var chapterIndex = 0
-        for (i, line) in transcript.lines.enumerated() {
+        for (i, line) in lines.enumerated() {
             while let chapter = chapters.first, chapter.start <= line.start + 0.5 {
                 rows.append(.chapter(index: chapterIndex, chapter))
                 chapterIndex += 1
                 chapters = chapters.dropFirst()
             }
             rows.append(.line(line, speakerBreak: line.newSpeaker && i > 0))
+        }
+        for chapter in chapters {
+            rows.append(.chapter(index: chapterIndex, chapter))
+            chapterIndex += 1
         }
         return rows
     }
@@ -251,6 +258,10 @@ final class PlayerModel: ObservableObject {
             if lines[mid].start <= time + 0.05 { index = mid; lo = mid + 1 } else { hi = mid - 1 }
         }
         if index != currentLine { currentLine = index }
+    }
+
+    func chapter(at seconds: Double) -> Chapter? {
+        chapters.last { $0.start <= seconds + 0.05 }
     }
 
     var caption: String? {

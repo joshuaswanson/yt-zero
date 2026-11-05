@@ -11,6 +11,14 @@ struct PlayerView: View {
                 IconButton(icon: .back, help: "Back to library (Esc)", color: Palette.nightSlate,
                            hoverColor: Palette.nightInk, hoverBackground: Palette.nightRaised) { model.close() }
                 Text(model.video?.title ?? "").font(rubik(20, 600)).lineLimit(1).truncationMode(.tail)
+                    .layoutPriority(1)
+                if let chapter = model.chapter(at: model.time), !chapter.title.isEmpty {
+                    Text(chapter.title).font(rubik(15, 500)).foregroundStyle(Palette.nightSlate)
+                        .lineLimit(1).truncationMode(.tail)
+                        .padding(.horizontal, 10).padding(.vertical, 3)
+                        .background(Capsule().fill(Palette.nightRaised))
+                        .help("Current chapter")
+                }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 18).padding(.top, 34).padding(.bottom, 12)
@@ -182,14 +190,31 @@ struct SliderTrack: View {
     let fraction: Double
     let fill: Color
     let hovering: Bool
+    var marks: [Double] = []
+    /// The scrubber passes the hovered fraction so the segment under the pointer grows.
+    var hoverFraction: Double?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
-            let travel = max(0, geo.size.width - 16)
+            let width = geo.size.width
+            let travel = max(0, width - 16)
             let f = min(1, max(0, fraction.isFinite ? fraction : 0))
+            let inner = marks.filter { $0 > 0 && $0 < 1 }.sorted()
+            let x = { (mark: Double) in 8 + travel * mark }
+            let edges = [0] + inner.map(x) + [width]
+            let hovered = hoverFraction.map { h in inner.filter { $0 <= h }.count }
             ZStack(alignment: .leading) {
-                Capsule().fill(Palette.nightTrack).frame(height: 6)
-                Capsule().fill(fill).frame(width: 8 + travel * f, height: 6)
+                ForEach(0..<edges.count - 1, id: \.self) { i in
+                    TrackSegment(width: edges[i + 1] - edges[i], filled: x(f) - edges[i], fill: fill,
+                                 raised: hovered == i, roundLeading: i == 0, roundTrailing: i == edges.count - 2)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: hovered == i)
+                        .offset(x: edges[i])
+                }
+                ForEach(Array(inner.enumerated()), id: \.offset) { _, mark in
+                    Rectangle().fill(Palette.night).frame(width: 3, height: 14)
+                        .offset(x: x(mark) - 1.5)
+                }
                 Circle().fill(Palette.nightInk).frame(width: 16, height: 16)
                     .scaleEffect(hovering ? 1.2 : 1)
                     .animation(.easeOut(duration: 0.12), value: hovering)
@@ -198,6 +223,28 @@ struct SliderTrack: View {
             .frame(maxHeight: .infinity)
         }
         .frame(height: 22)
+    }
+}
+
+struct TrackSegment: View {
+    let width: CGFloat
+    let filled: CGFloat
+    let fill: Color
+    let raised: Bool
+    let roundLeading: Bool
+    let roundTrailing: Bool
+
+    var body: some View {
+        let height: CGFloat = raised ? 12 : 6
+        let leading = roundLeading ? height / 2 : 0
+        let trailing = roundTrailing ? height / 2 : 0
+        ZStack(alignment: .leading) {
+            Palette.nightTrack
+            fill.frame(width: min(max(0, filled), width))
+        }
+        .frame(width: max(0, width), height: height)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: leading, bottomLeadingRadius: leading,
+                                          bottomTrailingRadius: trailing, topTrailingRadius: trailing))
     }
 }
 
@@ -238,7 +285,9 @@ struct Scrubber: View {
             let timeAt = { (x: CGFloat) -> Double in
                 Double(min(1, max(0, (x - 8) / travel))) * model.duration
             }
-            SliderTrack(fraction: fraction, fill: Palette.signal, hovering: hoverX != nil)
+            let marks = model.duration > 0 ? model.chapters.map { $0.start / model.duration } : []
+            SliderTrack(fraction: fraction, fill: Palette.signal, hovering: hoverX != nil, marks: marks,
+                        hoverFraction: hoverX.map { Double(min(1, max(0, ($0 - 8) / travel))) })
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { drag in
@@ -279,6 +328,19 @@ struct ScrubPreview: View {
     let time: Double
 
     var body: some View {
+        VStack(spacing: 6) {
+            if let title = model.chapter(at: time)?.title, !title.isEmpty {
+                Text(title).font(rubik(13, 600)).foregroundStyle(.white)
+                    .lineLimit(2).multilineTextAlignment(.center)
+                    .padding(.horizontal, 10).padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Palette.scrim))
+                    .frame(width: PlayerModel.previewWidth)
+            }
+            frame
+        }
+    }
+
+    private var frame: some View {
         ZStack(alignment: .bottom) {
             Color.black
             if let image = model.previewImage {
