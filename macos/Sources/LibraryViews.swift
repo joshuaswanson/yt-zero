@@ -202,7 +202,7 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Toolbar().id("top").padding(.bottom, 28)
+                    Toolbar().padding(.bottom, 28)
                     if !Tools.missing.isEmpty {
                         ToolsNotice()
                     } else if library.needsSignIn {
@@ -217,6 +217,7 @@ struct LibraryView: View {
                 }
                 .padding(.top, Layout.contentTop).padding(.leading, 30).padding(.trailing, 36).padding(.bottom, 60)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .id("top")
             }
             .onChange(of: section) { proxy.scrollTo("top", anchor: .top) }
             .onChange(of: library.settings.channel?.id) { proxy.scrollTo("top", anchor: .top) }
