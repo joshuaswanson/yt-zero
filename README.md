@@ -56,4 +56,4 @@ Rubik by Hubert and Fischer, under the SIL Open Font License (`macos/Resources/O
 
 ## Icons
 
-[Phosphor Icons](https://phosphoricons.com/) by Helena Zhang and Tobias Fried, under the MIT License.
+[Phosphor Icons](https://phosphoricons.com/) by Helena Zhang and Tobias Fried, under the MIT License (`macos/Resources/Phosphor-LICENSE.txt`).
