@@ -526,9 +526,10 @@ struct VideoCard: View {
             }
             if mode == .subscriptions {
                 if library.inWatchLater(id) {
-                    IconView(icon: .done).foregroundStyle(Palette.done).frame(width: 34, height: 34).help("In Watch Later")
+                    IconView(icon: .inWatchLater).foregroundStyle(Palette.done)
+                        .frame(width: 34, height: 34).help("In Watch Later")
                 } else {
-                    IconButton(icon: .add, help: "Add to Watch Later", size: 34) {
+                    IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) {
                         library.addToWatchLater(id)
                     }
                 }
