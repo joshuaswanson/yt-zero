@@ -177,6 +177,21 @@ svg.icon { width: 21px; height: 21px; fill: currentColor; }
 
 .empty { color: var(--slate); font-size: 17px; max-width: 46ch; }
 
+.notice {
+  max-width: 540px; padding: 26px 28px 28px;
+  border-radius: 22px; background: var(--paper);
+}
+.notice h2 { margin: 0 0 8px; font: 600 22px/1.25 var(--body); color: var(--ink); }
+.notice p { margin: 0 0 16px; color: var(--slate); font-size: 16px; line-height: 1.5; }
+.notice ol { margin: 0 0 22px; padding-left: 22px; color: var(--ink); font-size: 16px; line-height: 1.7; }
+.notice-button {
+  display: inline-flex; align-items: center; height: 42px; padding: 0 22px;
+  border-radius: 21px; background: var(--signal); color: #fff;
+  font-weight: 600; text-decoration: none; transition: transform 0.12s, background 0.12s;
+}
+.notice-button:hover { background: var(--case); }
+.notice-button:active { transform: scale(0.96); }
+
 .load-more {
   display: block; margin: 40px auto 0; height: 42px; padding: 0 24px;
   border: 0; border-radius: 21px; background: var(--paper); font-weight: 500;
@@ -423,5 +438,5 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
   .theater, .brand-mark .hand { animation: none; }
   .spin svg, .stopwatch.waiting .hand { animation: none; }
   .flash.show { animation-name: fade; }
-  .icon-btn, .controls .icon-btn, .subscribe, .load-more, .thumb, input[type="range"]::-webkit-slider-thumb { transition: none; }
+  .icon-btn, .controls .icon-btn, .subscribe, .load-more, .notice-button, .thumb, input[type="range"]::-webkit-slider-thumb { transition: none; }
 }

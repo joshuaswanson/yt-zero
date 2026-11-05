@@ -284,7 +284,8 @@ function render() {
 
   const empty = $(".empty");
   const loadMore = $(".load-more");
-  empty.hidden = vids.length > 0;
+  $(".notice").hidden = !state.needsDiskAccess;
+  empty.hidden = vids.length > 0 || Boolean(state.needsDiskAccess);
   empty.textContent = refreshing && !vids.length ? "Loading..."
     : onChannel && channelView.failed ? "Videos did not load. Refresh to try again."
     : onChannel ? "This channel has no videos."

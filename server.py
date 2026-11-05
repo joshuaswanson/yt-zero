@@ -55,6 +55,7 @@ class Library:
         self.removed = set()
         self.loading = False
         self.error = None
+        self.needs_disk_access = False
         self.download_slots = threading.BoundedSemaphore(DOWNLOAD_CONCURRENCY)
 
     def snapshot(self):
@@ -63,6 +64,7 @@ class Library:
             return {
                 "loading": self.loading,
                 "error": self.error,
+                "needsDiskAccess": self.needs_disk_access,
                 "watchLater": self.watch_later,
                 "subscriptions": self.subscriptions,
                 "subscriptionDays": self.subscription_days,
@@ -84,6 +86,7 @@ class Library:
 
     def _load(self):
         error = None
+        needs_disk_access = False
         with self.lock:
             days = self.subscription_days
         try:
@@ -91,9 +94,7 @@ class Library:
                 youtube.extract_cookies()
             watch_later = youtube.fetch_watch_later()
             if watch_later is None and not youtube.can_read_safari_cookies():
-                error = ("YouTube Zero can't read your YouTube sign-in from Safari. "
-                         "Turn on YouTube Zero in System Settings, under Privacy & "
-                         "Security, then Full Disk Access. Then quit and reopen the app.")
+                needs_disk_access = True
             elif watch_later is None:
                 error = ("Watch Later did not load. Check that Safari is "
                          "signed in to YouTube.")
@@ -115,6 +116,7 @@ class Library:
             if set_video_ids is not None:
                 self.set_video_ids = set_video_ids
             self.error = error
+            self.needs_disk_access = needs_disk_access
             self.loading = False
         print(f"[load] {len(self.watch_later)} Watch Later, "
               f"{len(self.subscriptions)} subscription uploads")

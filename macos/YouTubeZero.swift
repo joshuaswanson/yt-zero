@@ -140,9 +140,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if let url = action.request.url, ["http", "https"].contains(url.scheme), url.host != "127.0.0.1" {
-            NSWorkspace.shared.open(url)
-            return decisionHandler(.cancel)
+        if let url = action.request.url, let scheme = url.scheme {
+            let web = ["http", "https"].contains(scheme)
+            if (web && url.host != "127.0.0.1") || (!web && !["about", "data", "blob"].contains(scheme)) {
+                NSWorkspace.shared.open(url)
+                return decisionHandler(.cancel)
+            }
         }
         decisionHandler(.allow)
     }
