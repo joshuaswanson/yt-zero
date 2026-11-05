@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Local web server for the Watchbar library. Run with `uv run server.py`."""
+"""Local web server for YouTube Zero. Run with `uv run server.py`."""
 
 import errno
 import json
@@ -467,7 +467,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/prefs":
             return self._json(prefs.get())
         if path == "/api/ping":
-            return self._json({"app": "watchbar"})
+            return self._json({"app": "youtube-zero"})
         m = re.fullmatch(r"/api/channel/(UC[\w-]{22})", path)
         if m:
             query = parse_qs(urlparse(self.path).query)
@@ -621,14 +621,14 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     library.refresh()
     threading.Thread(target=auto_refresh, daemon=True).start()
-    if os.environ.get("WATCHBAR_EXIT_WHEN_CLOSED"):
+    if os.environ.get("YOUTUBE_ZERO_EXIT_WHEN_CLOSED"):
         threading.Thread(target=presence.watch, daemon=True).start()
     server = bind()
     port = server.server_address[1]
     _write_json(SERVER_FILE, {"port": port})
     url = f"http://{HOST}:{port}/"
-    print(f"Watchbar web is running at {url}")
-    if not os.environ.get("WATCHBAR_WEB_NO_BROWSER"):
+    print(f"YouTube Zero is running at {url}")
+    if not os.environ.get("YOUTUBE_ZERO_NO_BROWSER"):
         webbrowser.open(url)
     server.serve_forever()
 

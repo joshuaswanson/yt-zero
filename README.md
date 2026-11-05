@@ -1,6 +1,8 @@
-# WatchBar web
+# YouTube Zero
 
-A browser interface for your YouTube Watch Later playlist and subscriptions. It downloads videos locally and plays them in the page with a transcript.
+YouTube with zero ads, zero Shorts, and zero lag. Just the videos.
+
+YouTube Zero is a local web app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos locally and plays them in the page with a transcript.
 
 ## Features
 
@@ -28,7 +30,7 @@ A browser interface for your YouTube Watch Later playlist and subscriptions. It 
 
 This starts the server at http://127.0.0.1:8765, or at the next free port up to 8784, and opens it in your browser. The page works while the server runs.
 
-To use WatchBar as its own window, run `./window.sh`, or a `.command` file that runs it. It starts the server and opens the app in a new Safari window. Closing that window stops the server and any downloads in progress. A reload keeps the server running. If the server is already running, it opens another window.
+To use YouTube Zero as its own window, run `./window.sh`, or a `.command` file that runs it. It starts the server and opens the app in a new Safari window. Closing that window stops the server and any downloads in progress. A reload keeps the server running. If the server is already running, it opens another window.
 
 Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are saved in `.cache/prefs.json`, so every browser and port shares them.
 

@@ -145,7 +145,7 @@ async function poll() {
   try {
     applyState(await api("/api/state"));
   } catch {
-    state.error = "Lost the connection to the server. Open WatchBar again to restart it.";
+    state.error = "Lost the connection to the server. Open YouTube Zero again to restart it.";
     render();
   }
   const busy = state.loading || state.loadingMore || Object.keys(state.downloads || {}).some(
@@ -561,7 +561,7 @@ function findVideo(id) {
 async function openPlayer(id) {
   playing = findVideo(id);
   $(".now-playing").textContent = playing.title;
-  document.title = `${playing.title} - WatchBar`;
+  document.title = `${playing.title} - YouTube Zero`;
   theater.hidden = false;
   for (const t of videoEl.querySelectorAll("track")) t.remove();
   videoEl.src = `/media/${id}.mp4`;
@@ -596,7 +596,7 @@ function closePlayer() {
   scrubPreview.hidden = true;
   playing = null;
   theater.hidden = true;
-  document.title = "WatchBar";
+  document.title = "YouTube Zero";
   render();
 }
 

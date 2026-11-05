@@ -1,5 +1,5 @@
 #!/bin/bash
-# Opens WatchBar in a new Safari window. Closing the window stops the server
+# Opens YouTube Zero in a new Safari window. Closing the window stops the server
 # and any downloads still running.
 cd "$(dirname "$0")" || exit 1
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -10,7 +10,7 @@ running_port() {
   local port
   port=$(sed -n 's/.*"port": *\([0-9]*\).*/\1/p' "$SERVER_FILE" 2>/dev/null)
   [ -n "$port" ] || return 1
-  curl -sf "http://127.0.0.1:$port/api/ping" | grep -q '"watchbar"' || return 1
+  curl -sf "http://127.0.0.1:$port/api/ping" | grep -q '"youtube-zero"' || return 1
   echo "$port"
 }
 
@@ -21,7 +21,7 @@ open_window() {
 }
 
 if port=$(running_port); then
-  echo "WatchBar is already running. Opening another window."
+  echo "YouTube Zero is already running. Opening another window."
   open_window "$port"
   exit 0
 fi
@@ -37,7 +37,7 @@ trap cleanup EXIT
 trap 'exit 130' INT HUP TERM
 
 rm -f "$SERVER_FILE"
-WATCHBAR_WEB_NO_BROWSER=1 WATCHBAR_EXIT_WHEN_CLOSED=1 uv run server.py &
+YOUTUBE_ZERO_NO_BROWSER=1 YOUTUBE_ZERO_EXIT_WHEN_CLOSED=1 uv run server.py &
 server=$!
 
 until port=$(running_port); do
