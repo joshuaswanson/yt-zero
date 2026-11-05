@@ -547,11 +547,19 @@ struct VideoCard: View {
             .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: percent)
     }
 
-    /// The same three buttons in every section: YouTube, download, and Watch Later.
+    /// The same three buttons in every section: YouTube, Watch Later, and download.
     @ViewBuilder private var actions: some View {
         let id = video.id
         HStack(spacing: 0) {
             IconButton(icon: .youtube, help: "Open on YouTube", size: 34) { library.openOnYouTube(id) }
+            if library.inWatchLater(id) {
+                IconButton(icon: .inWatchLater, help: "Remove from Watch Later", size: 34, color: Palette.done,
+                           hoverColor: Palette.caseRed, hoverIcon: .removeWatchLater) {
+                    library.removeFromWatchLater(id)
+                }
+            } else {
+                IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) { library.addToWatchLater(id) }
+            }
             if status?.isActive == true {
                 IconButton(icon: .stop, help: "Stop download", size: 34, hoverColor: Palette.caseRed) {
                     library.cancel(id)
@@ -565,14 +573,6 @@ struct VideoCard: View {
                 IconButton(icon: .download, help: "Download", size: 34) {
                     library.download(id, saveToWatchLater: library.settings.section != .channel)
                 }
-            }
-            if library.inWatchLater(id) {
-                IconButton(icon: .inWatchLater, help: "Remove from Watch Later", size: 34, color: Palette.done,
-                           hoverColor: Palette.caseRed, hoverIcon: .removeWatchLater) {
-                    library.removeFromWatchLater(id)
-                }
-            } else {
-                IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) { library.addToWatchLater(id) }
             }
         }
     }
