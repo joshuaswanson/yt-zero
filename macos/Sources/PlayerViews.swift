@@ -296,7 +296,10 @@ struct Scrubber: View {
                         hoverX = drag.location.x
                         model.requestPreview(timeAt(drag.location.x))
                     }
-                    .onEnded { _ in model.scrubbing = false })
+                    .onEnded { _ in
+                        model.scrubbing = false
+                        NowPlaying.update(model: model)
+                    })
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let point):

@@ -105,10 +105,14 @@ final class PlayerModel: ObservableObject {
             MainActor.assumeIsolated { self?.didEnd() }
         }
         installKeyMonitor()
+        NowPlaying.start(self)
 
         Task {
             let asset = item.asset
-            if let length = try? await asset.load(.duration).seconds, length.isFinite, length > 0 { duration = length }
+            if let length = try? await asset.load(.duration).seconds, length.isFinite, length > 0 {
+                duration = length
+                NowPlaying.update(model: self)
+            }
             if let track = try? await asset.loadTracks(withMediaType: .video).first,
                let size = try? await track.load(.naturalSize), size.width > 0, size.height > 0 {
                 videoAspect = size.width / size.height
@@ -139,6 +143,7 @@ final class PlayerModel: ObservableObject {
         teardown()
         video = nil
         library.playing = nil
+        NowPlaying.stop()
     }
 
     private func teardown() {
@@ -184,12 +189,14 @@ final class PlayerModel: ObservableObject {
         player.defaultRate = Float(library.settings.speed)
         player.play()
         isPlaying = true
+        NowPlaying.update(model: self)
     }
 
     func pause() {
         player.pause()
         isPlaying = false
         savePosition(force: true)
+        NowPlaying.update(model: self)
     }
 
     func toggle() { isPlaying ? pause() : play() }
@@ -205,6 +212,7 @@ final class PlayerModel: ObservableObject {
         time = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         updateCurrentLine()
+        if !scrubbing { NowPlaying.update(model: self) }
     }
 
     func skip(_ seconds: Double) {
@@ -222,6 +230,7 @@ final class PlayerModel: ObservableObject {
         library.settings.speed = speed
         player.defaultRate = Float(speed)
         if isPlaying { player.rate = Float(speed) }
+        NowPlaying.update(model: self)
     }
 
     private func showFlash(_ flash: Flash) { self.flash = flash }
@@ -229,7 +238,10 @@ final class PlayerModel: ObservableObject {
     private func tick(_ seconds: Double) {
         guard seconds.isFinite, video != nil else { return }
         if !scrubbing { time = seconds }
-        if isPlaying && player.rate == 0 && player.timeControlStatus == .paused { isPlaying = false }
+        if isPlaying && player.rate == 0 && player.timeControlStatus == .paused {
+            isPlaying = false
+            NowPlaying.update(model: self)
+        }
         updateCurrentLine()
         savePosition(force: false)
     }
@@ -237,6 +249,7 @@ final class PlayerModel: ObservableObject {
     private func didEnd() {
         ended = true
         isPlaying = false
+        NowPlaying.update(model: self)
         if let id = video?.id { library.setPosition(id, nil) }
     }
 
