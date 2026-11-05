@@ -2,7 +2,7 @@
 
 YouTube with zero ads, zero Shorts, and zero lag. Just the videos.
 
-YT Zero is a native Mac app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos and plays them with a transcript.
+YT Zero is a native Mac app for your YouTube Watch Later playlist, subscriptions, and channels.
 
 ## Features
 
