@@ -18,6 +18,7 @@ enum Paths {
         for dir in [support, downloads, transcripts] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: support.path)
         FileManager.default.createFile(atPath: log.path, contents: nil)
     }
 }

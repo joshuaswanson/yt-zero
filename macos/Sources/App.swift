@@ -11,11 +11,19 @@ struct YouTubeZeroApp: App {
             ContentView()
                 .environmentObject(library)
                 .task { library.start() }
+                .sheet(isPresented: $library.showSignIn) { SignInSheet().environmentObject(library) }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 820)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                if library.cookieSource == .app {
+                    Button("Sign Out of YouTube") { library.signOut() }
+                } else {
+                    Button("Sign In to YouTube…") { library.showSignIn = true }
+                }
+            }
             CommandGroup(after: .toolbar) {
                 Button("Refresh") { library.refreshAll() }.keyboardShortcut("r")
             }

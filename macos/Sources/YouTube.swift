@@ -28,16 +28,117 @@ enum YouTube {
         }
     }
 
-    static func extractCookies() {
+    /// Where the YouTube sign-in comes from, in the order they are tried.
+    enum CookieSource: String, CaseIterable {
+        case app, safari, chrome, brave, edge, firefox
+
+        var name: String {
+            switch self {
+            case .app: "YouTube Zero"
+            case .safari: "Safari"
+            case .chrome: "Chrome"
+            case .brave: "Brave"
+            case .edge: "Edge"
+            case .firefox: "Firefox"
+            }
+        }
+
+        fileprivate var profilePath: String? {
+            let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+            return switch self {
+            case .app: nil
+            case .safari: Paths.safariCookies.path
+            case .chrome: support.appendingPathComponent("Google/Chrome").path
+            case .brave: support.appendingPathComponent("BraveSoftware/Brave-Browser").path
+            case .edge: support.appendingPathComponent("Microsoft Edge").path
+            case .firefox: support.appendingPathComponent("Firefox/Profiles").path
+            }
+        }
+    }
+
+    /// Writes the first working sign-in to the cookie file: the app's own
+    /// session, then each installed browser. Returns nil when none is signed in.
+    static func prepareCookies(appCookies: [HTTPCookie]) -> CookieSource? {
+        if !appCookies.isEmpty {
+            writeCookies(appCookies)
+            if hasYouTubeLogin() { return .app }
+        }
+        for source in CookieSource.allCases where source != .app {
+            guard let path = source.profilePath, FileManager.default.fileExists(atPath: path) else { continue }
+            if source == .safari && !canReadSafariCookies() { continue }
+            if extractCookies(from: source) { return source }
+        }
         try? FileManager.default.removeItem(at: Paths.cookies)
+        return nil
+    }
+
+    /// yt-dlp exports every cookie the browser has, so the export goes to the
+    /// private temporary directory and only YouTube and Google cookies are kept.
+    private static func extractCookies(from source: CookieSource) -> Bool {
+        try? FileManager.default.removeItem(at: Paths.cookies)
+        let export = FileManager.default.temporaryDirectory.appendingPathComponent("youtube-zero-export-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: export) }
         _ = run(Tools.ytDlp, [
-            "--ignore-config", "--cookies-from-browser", "safari", "--cookies", Paths.cookies.path,
+            "--ignore-config", "--cookies-from-browser", source.rawValue, "--cookies", export.path,
             "--skip-download", "--no-write-subs", "--no-write-auto-subs",
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         ], timeout: 60)
+        guard let text = try? String(contentsOf: export, encoding: .utf8) else { return false }
+        let kept = text.split(separator: "\n").filter { line in
+            var entry = Substring(line)
+            if entry.hasPrefix("#HttpOnly_") { entry = entry.dropFirst("#HttpOnly_".count) } else if entry.hasPrefix("#") { return false }
+            return isYouTubeDomain(String(entry.prefix { $0 != "\t" }))
+        }
+        saveCookieFile(kept.map(String.init))
+        let found = hasYouTubeLogin()
+        log("[cookies] \(source.name): \(found ? "signed in" : "not signed in")")
+        return found
     }
 
-    private static func loadCookies() -> [String: String] {
+    static func hasYouTubeLogin() -> Bool {
+        let cookies = loadCookies()
+        return cookies["SAPISID"] != nil || cookies["__Secure-3PAPISID"] != nil
+    }
+
+    private static func writeCookies(_ cookies: [HTTPCookie]) {
+        saveCookieFile(cookies.filter { isYouTubeDomain($0.domain) }.map { c in
+            let expiry = Int(c.expiresDate?.timeIntervalSince1970 ?? 0)
+            return [c.domain, c.domain.hasPrefix(".") ? "TRUE" : "FALSE", c.path, c.isSecure ? "TRUE" : "FALSE",
+                    String(expiry), c.name, c.value].joined(separator: "\t")
+        })
+    }
+
+    /// YouTube's own cookies and the Google sign-in cookies behind them.
+    static func isYouTubeDomain(_ domain: String) -> Bool {
+        let host = domain.hasPrefix(".") ? String(domain.dropFirst()) : domain
+        return host == "youtube.com" || host.hasSuffix(".youtube.com")
+            || ["google.com", "www.google.com", "accounts.google.com"].contains(host)
+    }
+
+    /// Netscape cookie file format, which yt-dlp reads with --cookies,
+    /// readable by this user only.
+    private static func saveCookieFile(_ lines: [String]) {
+        let data = Data((["# Netscape HTTP Cookie File"] + lines).joined(separator: "\n").appending("\n").utf8)
+        let staging = Paths.cookies.appendingPathExtension("tmp")
+        try? FileManager.default.removeItem(at: staging)
+        guard FileManager.default.createFile(atPath: staging.path, contents: data,
+                                             attributes: [.posixPermissions: 0o600]) else { return }
+        _ = try? FileManager.default.replaceItemAt(Paths.cookies, withItemAt: staging)
+        if !FileManager.default.fileExists(atPath: Paths.cookies.path) {
+            try? FileManager.default.moveItem(at: staging, to: Paths.cookies)
+        }
+    }
+
+    /// yt-dlp writes its cookie jar back when it exits, so each run gets a
+    /// private copy and parallel downloads never write the same file.
+    static func withCookies<T>(_ body: ([String]) -> T) -> T {
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("youtube-zero-\(UUID().uuidString).txt")
+        guard (try? FileManager.default.copyItem(at: Paths.cookies, to: copy)) != nil else { return body([]) }
+        defer { try? FileManager.default.removeItem(at: copy) }
+        return body(["--cookies", copy.path])
+    }
+
+    static func loadCookies() -> [String: String] {
         guard let text = try? String(contentsOf: Paths.cookies, encoding: .utf8) else { return [:] }
         var cookies: [String: String] = [:]
         for raw in text.split(separator: "\n") {
@@ -83,7 +184,7 @@ enum YouTube {
         defer { clientVersionLock.unlock() }
         if let cached = cachedClientVersion, Date().timeIntervalSince(cached.fetched) < 3600 { return cached.value }
         var request = URLRequest(url: URL(string: "https://www.youtube.com")!, timeoutInterval: 10)
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        request.setValue(Session.userAgent, forHTTPHeaderField: "User-Agent")
         let page = fetch(request).0.map { String(decoding: $0, as: UTF8.self) } ?? ""
         if let version = firstMatch(#""clientVersion":"([\d.]+)""#, in: page)?[1] {
             cachedClientVersion = (version, Date())
@@ -137,13 +238,13 @@ enum YouTube {
 
     /// Watch Later in playlist order.
     static func fetchWatchLater() -> [Video]? {
-        let result = run(Tools.ytDlp, [
-            "--ignore-config", "--cookies-from-browser", "safari", "--flat-playlist",
+        let result = withCookies { cookies in run(Tools.ytDlp, ["--ignore-config"] + cookies + [
+            "--flat-playlist",
             // The playlist only carries relative dates ("3 years ago"); this
             // option converts them to approximate timestamps.
             "--extractor-args", "youtubetab:approximate_date",
             "--print", videoFields(), "https://www.youtube.com/playlist?list=WL",
-        ], timeout: 90)
+        ], timeout: 90) }
         guard result.ok else { failed("Watch Later", result); return nil }
         return parseVideos(result.stdout)
     }
@@ -152,15 +253,14 @@ enum YouTube {
     static func fetchSubscriptions(days: Int) -> (videos: [Video]?, reachedEnd: Bool) {
         let cutoff = Int(Date().timeIntervalSince1970) - days * 86400
         let maxVideos = days * subscriptionsVideosPerDay
-        let result = run(Tools.ytDlp, [
-            "--ignore-config", "--cookies-from-browser", "safari",
+        let result = withCookies { cookies in run(Tools.ytDlp, ["--ignore-config"] + cookies + [
             "--flat-playlist", "--playlist-end", String(maxVideos),
             "--extractor-args", "youtubetab:approximate_date",
             // The feed is newest first, so stop at the first video past the
             // cutoff. ">=?" lets entries without a date (live streams) through.
             "--break-match-filters", "timestamp>=?\(cutoff)",
             "--print", videoFields(), "https://www.youtube.com/feed/subscriptions",
-        ], timeout: 120)
+        ], timeout: 120) }
         // 101 is yt-dlp's exit code for stopping at --break-match-filters,
         // which means older uploads exist.
         guard result.status == 0 || result.status == 101 else { failed("subscriptions", result); return (nil, false) }
@@ -169,14 +269,13 @@ enum YouTube {
     }
 
     static func fetchChannelVideos(_ channelID: String, count: Int) -> (videos: [Video]?, reachedEnd: Bool) {
-        let result = run(Tools.ytDlp, [
-            "--ignore-config", "--cookies-from-browser", "safari",
+        let result = withCookies { cookies in run(Tools.ytDlp, ["--ignore-config"] + cookies + [
             "--flat-playlist", "--playlist-end", String(count),
             "--extractor-args", "youtubetab:approximate_date",
             // Channel tab entries leave "channel" empty.
             "--print", videoFields("playlist_channel"),
             "https://www.youtube.com/channel/\(channelID)/videos",
-        ], timeout: 120)
+        ], timeout: 120) }
         guard result.ok else { failed("channel \(channelID)", result); return (nil, false) }
         let videos = parseVideos(result.stdout)
         return (videos, videos.count < count)
@@ -184,11 +283,11 @@ enum YouTube {
 
     /// Subscribed channels sorted by name.
     static func fetchChannels() -> [Channel]? {
-        let result = run(Tools.ytDlp, [
-            "--ignore-config", "--cookies-from-browser", "safari", "--flat-playlist",
+        let result = withCookies { cookies in run(Tools.ytDlp, ["--ignore-config"] + cookies + [
+            "--flat-playlist",
             "--print", "%(channel_id)s\t%(title)s\t%(thumbnails.-1.url)s",
             "https://www.youtube.com/feed/channels",
-        ], timeout: 90)
+        ], timeout: 90) }
         guard result.ok else { failed("channels", result); return nil }
         let channels: [Channel] = result.stdout.split(separator: "\n").compactMap { line in
             let parts = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
@@ -209,7 +308,11 @@ enum YouTube {
         var request = URLRequest(url: URL(string: "https://www.youtube.com/playlist?list=WL")!, timeoutInterval: 20)
         request.setValue(cookieHeader(loadCookies()), forHTTPHeaderField: "Cookie")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        guard let data = fetch(request).0 else { return nil }
+        let (data, status) = fetch(request)
+        guard let data, status == 200 else {
+            log("[load] Watch Later page returned HTTP \(status)")
+            return nil
+        }
         let page = String(decoding: data, as: UTF8.self) as NSString
         guard let renderer = try? NSRegularExpression(pattern: #""playlistVideoRenderer":\{"videoId":"([^"]+)""#),
               let setID = try? NSRegularExpression(pattern: #""setVideoId":"([^"]+)""#) else { return nil }
@@ -223,6 +326,23 @@ enum YouTube {
             }
         }
         return mappings
+    }
+
+    /// The signed-in account's name, handle, and picture.
+    static func fetchAccount() -> Account? {
+        let actions = innertube("account/account_menu", [:], tag: "account")?["actions"] as? [[String: Any]]
+        let popup = (actions?.first?["openPopupAction"] as? [String: Any])?["popup"] as? [String: Any]
+        let header = ((popup?["multiPageMenuRenderer"] as? [String: Any])?["header"] as? [String: Any])?[
+            "activeAccountHeaderRenderer"] as? [String: Any]
+        func text(_ key: String) -> String? {
+            guard let field = header?[key] as? [String: Any] else { return nil }
+            if let simple = field["simpleText"] as? String { return simple }
+            return (field["runs"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
+        }
+        guard let name = text("accountName") else { return nil }
+        let thumbnails = (header?["accountPhoto"] as? [String: Any])?["thumbnails"] as? [[String: Any]]
+        let photo = (thumbnails?.last?["url"] as? String).flatMap(URL.init(string:))
+        return Account(name: name, handle: text("channelHandle") ?? "", photo: photo)
     }
 
     // MARK: Edits

@@ -63,6 +63,7 @@ struct Sidebar: View {
                 }
             }
             .scrollIndicators(.never)
+            AccountRow()
         }
         .padding(.horizontal, 12)
         .padding(.top, 22)
@@ -79,6 +80,56 @@ struct Sidebar: View {
         if library.channelsLoading { return "Loading..." }
         if library.channelsFailed { return "Did not load. Refresh to try again." }
         return library.channels == nil ? nil : "No subscriptions"
+    }
+}
+
+/// The signed-in YouTube account, with a menu to sign in or out.
+struct AccountRow: View {
+    @EnvironmentObject var library: Library
+    @State private var hovering = false
+
+    var body: some View {
+        if let source = library.cookieSource {
+            let account = library.account
+            Menu {
+                SwiftUI.Section(source == .app ? "Signed in to YouTube Zero" : "Using your sign-in from \(source.name)") {
+                    if source == .app {
+                        Button("Sign Out of YouTube") { library.signOut() }
+                    } else {
+                        Button("Sign In to YouTube…") { library.showSignIn = true }
+                    }
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    ZStack {
+                        Circle().fill(Palette.signal)
+                        Text(String((account?.name ?? "Y").prefix(1))).font(rubik(13, 600)).foregroundStyle(.white)
+                        if let photo = account?.photo { RemoteImage(urls: [photo]) }
+                    }
+                    .frame(width: 30, height: 30)
+                    .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(account?.name ?? "Signed in").font(rubik(14.5, 500)).foregroundStyle(Palette.ink)
+                        Text(account?.handle.isEmpty == false ? account!.handle : "YouTube account")
+                            .font(rubik(12.5)).foregroundStyle(Palette.slate)
+                    }
+                    .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 6).padding(.trailing, 8).padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(hovering ? Palette.mist : .clear))
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .focusable(false)
+            .onHover { hovering = $0 }
+            .padding(.top, 10)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Palette.mist).frame(height: 1).padding(.horizontal, 6)
+            }
+        }
     }
 }
 
@@ -154,8 +205,8 @@ struct LibraryView: View {
                     Toolbar().id("top").padding(.bottom, 28)
                     if !Tools.missing.isEmpty {
                         ToolsNotice()
-                    } else if library.needsDiskAccess {
-                        DiskAccessNotice()
+                    } else if library.needsSignIn {
+                        SignInNotice()
                     } else if videos.isEmpty {
                         Text(emptyText(section)).font(rubik(17)).foregroundStyle(Palette.slate)
                             .lineSpacing(3).frame(maxWidth: 440, alignment: .leading)
@@ -304,7 +355,7 @@ struct LoadMore: View {
             ? !library.channelPage.end && hasVideos
             : section == .subscriptions && !library.subscriptionsEnd && !(library.loading && !hasVideos)
         let busy = onChannel ? library.channelPage.loadingMore : library.loadingMore
-        if show && Tools.missing.isEmpty && !library.needsDiskAccess {
+        if show && Tools.missing.isEmpty && !library.needsSignIn {
             PillButton(title: busy ? "Loading..." : "Load more",
                        background: Palette.paper, foreground: busy ? Palette.slate : Palette.ink,
                        hoverBackground: Palette.ink, hoverForeground: Palette.paper,
@@ -332,23 +383,20 @@ struct NoticeCard<Content: View>: View {
     }
 }
 
-struct DiskAccessNotice: View {
+struct SignInNotice: View {
+    @EnvironmentObject var library: Library
+
     var body: some View {
-        NoticeCard(title: "Allow access to your YouTube sign-in") {
-            Text("YouTube Zero reads your YouTube sign-in from Safari. macOS only allows that for apps with Full Disk Access.")
-                .font(rubik(16)).foregroundStyle(Palette.slate).lineSpacing(4).padding(.bottom, 16)
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(["Open the Full Disk Access settings.", "Turn on YouTube Zero.",
-                               "Quit YouTube Zero and open it again."].enumerated()), id: \.offset) { i, step in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(i + 1).").monospacedDigit()
-                        Text(step)
-                    }
-                    .font(rubik(16))
-                }
-            }
-            .padding(.leading, 4).padding(.bottom, 22)
-            PillButton(title: "Open Full Disk Access settings", height: 42, weight: 600) {
+        NoticeCard(title: "Sign in to YouTube") {
+            Text("YouTube Zero needs your YouTube account to show Watch Later, your subscriptions, and your channels.")
+                .font(rubik(16)).foregroundStyle(Palette.slate).lineSpacing(4).padding(.bottom, 22)
+            PillButton(title: "Sign in", height: 42, weight: 600) { library.showSignIn = true }
+                .padding(.bottom, 22)
+            Text("YouTube Zero also uses your YouTube sign-in from Chrome, Brave, Edge, or Firefox. "
+                 + "To use Safari's, turn on Full Disk Access for YouTube Zero, then refresh.")
+                .font(rubik(14)).foregroundStyle(Palette.slate).lineSpacing(3).padding(.bottom, 12)
+            PillButton(title: "Open Full Disk Access settings", background: Palette.mist, foreground: Palette.ink,
+                       hoverBackground: Palette.hover, hoverForeground: Palette.ink, height: 34) {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
             }
         }

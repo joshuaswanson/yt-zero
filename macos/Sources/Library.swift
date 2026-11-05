@@ -39,7 +39,10 @@ final class Library: ObservableObject {
     @Published var loading = false
     @Published var loadingMore = false
     @Published var error: String?
-    @Published var needsDiskAccess = false
+    @Published var needsSignIn = false
+    @Published var cookieSource: YouTube.CookieSource?
+    @Published var showSignIn = false
+    @Published var account: Account?
 
     @Published var channels: [Channel]?
     @Published var channelsLoading = false
@@ -60,6 +63,10 @@ final class Library: ObservableObject {
     private var queue: [(id: String, token: UUID)] = []
     private var tokens: [String: UUID] = [:]
     private var timer: Timer?
+    private var cookieTask: Task<YouTube.CookieSource?, Never>?
+    private let sessionKeeper = SessionKeeper()
+    private var sessionRefreshedAt: Date?
+    private static let sessionRefreshInterval: TimeInterval = 6 * 3600
 
     private init() {
         Paths.prepare()
@@ -121,6 +128,66 @@ final class Library: ObservableObject {
         loading || (settings.section == .channel && channelPage.loading && !channelPage.loadingMore)
     }
 
+    // MARK: Sign-in
+
+    /// Rewrites the cookie file from the first working sign-in when it is
+    /// stale or `force` is set. Calls made while an update runs share its result.
+    @discardableResult
+    func updateCookies(force: Bool = false) async -> YouTube.CookieSource? {
+        if let cookieTask { return await cookieTask.value }
+        if !force, cookieSource != nil, YouTube.cookiesAreFresh() { return cookieSource }
+        let task = Task { await prepareCookies() }
+        cookieTask = task
+        let source = await task.value
+        cookieTask = nil
+        return source
+    }
+
+    private func prepareCookies() async -> YouTube.CookieSource? {
+        var appCookies = await Session.cookies()
+        let due = sessionRefreshedAt.map { Date().timeIntervalSince($0) > Self.sessionRefreshInterval } ?? true
+        if Session.isSignedIn(appCookies), due {
+            await sessionKeeper.refresh()
+            sessionRefreshedAt = Date()
+            appCookies = await Session.cookies()
+        }
+        let snapshot = appCookies
+        let source = await background { YouTube.prepareCookies(appCookies: snapshot) }
+        if source != cookieSource || account == nil {
+            account = source == nil ? nil : await background { YouTube.fetchAccount() }
+        }
+        cookieSource = source
+        needsSignIn = source == nil
+        log("[cookies] using \(source?.name ?? "no sign-in")")
+        return source
+    }
+
+    func finishSignIn() {
+        showSignIn = false
+        sessionRefreshedAt = Date()
+        Task {
+            await updateCookies(force: true)
+            refreshAll()
+        }
+    }
+
+    func signOut() {
+        Task {
+            await Session.signOut()
+            await updateCookies(force: true)
+            refreshAll()
+        }
+    }
+
+    /// Runs a signed-in request, and once more with fresh cookies if it fails,
+    /// because Google rotates session cookies.
+    private func withSignIn(_ work: @escaping () -> Bool) async -> Bool {
+        await updateCookies()
+        if await background(work) { return true }
+        await updateCookies(force: true)
+        return await background(work)
+    }
+
     // MARK: Refresh
 
     func refresh() {
@@ -128,24 +195,35 @@ final class Library: ObservableObject {
         loading = true
         let days = subscriptionDays
         Task {
-            let result = await background { () -> (watchLater: [Video]?, subscriptions: ([Video]?, Bool), setIDs: [String: String]?, noAccess: Bool) in
-                if !YouTube.cookiesAreFresh() { YouTube.extractCookies() }
-                let watchLater = YouTube.fetchWatchLater()
-                let noAccess = watchLater == nil && !YouTube.canReadSafariCookies()
-                let subscriptions = YouTube.fetchSubscriptions(days: days)
-                let setIDs = YouTube.fetchSetVideoIDs()
-                if setIDs == nil { log("[load] setVideoIds failed") }
-                return (watchLater, subscriptions, setIDs, noAccess)
+            defer {
+                loading = false
+                local = YouTube.localFiles()
+            }
+            guard await updateCookies() != nil else {
+                error = nil
+                return
+            }
+            var result = await fetchLibrary(days: days)
+            if result.watchLater == nil {
+                await updateCookies(force: true)
+                result = await fetchLibrary(days: days)
             }
             if let list = result.watchLater { watchLater = list }
             if let list = result.subscriptions.0 { setSubscriptions(days, list, result.subscriptions.1) }
             if let ids = result.setIDs { setVideoIDs = ids }
-            needsDiskAccess = result.noAccess
-            error = result.watchLater == nil && !result.noAccess
-                ? "Watch Later did not load. Check that Safari is signed in to YouTube." : nil
-            loading = false
-            local = YouTube.localFiles()
+            error = result.watchLater == nil ? "Watch Later did not load. Check that you are signed in to YouTube." : nil
             log("[load] \(watchLater.count) Watch Later, \(subscriptions.count) subscription uploads")
+        }
+    }
+
+    private func fetchLibrary(days: Int) async
+        -> (watchLater: [Video]?, subscriptions: ([Video]?, Bool), setIDs: [String: String]?) {
+        await background {
+            let watchLater = YouTube.fetchWatchLater()
+            let subscriptions = YouTube.fetchSubscriptions(days: days)
+            let setIDs = YouTube.fetchSetVideoIDs()
+            if setIDs == nil { log("[load] setVideoIds failed") }
+            return (watchLater, subscriptions, setIDs)
         }
     }
 
@@ -181,6 +259,7 @@ final class Library: ObservableObject {
         guard !channelsLoading, force || channels == nil || stale else { return }
         channelsLoading = true
         Task {
+            await updateCookies()
             let list = await background { YouTube.fetchChannels() }
             if let list {
                 channels = list
@@ -215,6 +294,7 @@ final class Library: ObservableObject {
         channelPage.loading = true
         channelPage.loadingMore = mode == .more
         Task {
+            await updateCookies()
             let (videos, end) = await background { YouTube.fetchChannelVideos(id, count: count) }
             if let videos { channelCache[id] = ChannelCacheEntry(videos: videos, count: count, end: end, fetchedAt: Date()) }
             guard request == channelRequest else { return }
@@ -234,19 +314,13 @@ final class Library: ObservableObject {
         guard let channel = settings.channel else { return }
         channelPage.subscribing = true
         Task {
-            let ok = await background { () -> Bool in
-                if YouTube.setSubscribed(channel.id, subscribed) { return true }
-                // Safari rotates YouTube's session cookies, which logs out the
-                // cached copy before cookieMaxAge is reached.
-                YouTube.extractCookies()
-                return YouTube.setSubscribed(channel.id, subscribed)
-            }
+            let ok = await withSignIn { YouTube.setSubscribed(channel.id, subscribed) }
             if ok {
                 var list = (channels ?? []).filter { $0.id != channel.id }
                 if subscribed { list.append(channel) }
                 channels = YouTube.sortChannels(list)
             } else {
-                error = "\(subscribed ? "Subscribing" : "Unsubscribing") failed. Check that Safari is signed in to YouTube."
+                error = "\(subscribed ? "Subscribing" : "Unsubscribing") failed. Check that you are signed in to YouTube."
             }
             channelPage.subscribing = false
         }
@@ -258,10 +332,8 @@ final class Library: ObservableObject {
         guard let video = find(id), !inWatchLater(id) else { return }
         watchLater.append(video)
         forgetOtherDownload(id)
-        Task.detached {
-            if YouTube.addToWatchLater(id) { return }
-            YouTube.extractCookies()
-            if !YouTube.addToWatchLater(id) { log("[add] failed: \(id)") }
+        Task {
+            if await !withSignIn({ YouTube.addToWatchLater(id) }) { log("[add] failed: \(id)") }
         }
     }
 
@@ -273,11 +345,13 @@ final class Library: ObservableObject {
             writeJSON(otherDownloads, to: Paths.otherDownloads)
         }
         watchLater.removeAll { $0.id == id }
-        Task.detached {
-            if let setID, YouTube.removeFromWatchLater(id, setVideoID: setID) { return }
-            YouTube.extractCookies()
-            guard let fresh = YouTube.fetchSetVideoIDs()?[id], YouTube.removeFromWatchLater(id, setVideoID: fresh)
-            else { return log("[remove] failed: \(id)") }
+        Task {
+            let removed = await withSignIn {
+                if let setID, YouTube.removeFromWatchLater(id, setVideoID: setID) { return true }
+                guard let fresh = YouTube.fetchSetVideoIDs()?[id] else { return false }
+                return YouTube.removeFromWatchLater(id, setVideoID: fresh)
+            }
+            if !removed { log("[remove] failed: \(id)") }
         }
     }
 

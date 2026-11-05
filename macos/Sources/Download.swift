@@ -20,7 +20,9 @@ final class Download: @unchecked Sendable {
     func run() -> (ok: Bool, output: String) {
         var (ok, output) = attempt(cookieArguments: [])
         if !ok && !cancelled {
-            (ok, output) = attempt(cookieArguments: ["--cookies-from-browser", "safari"])
+            (ok, output) = YouTube.withCookies { cookies in
+                cookies.isEmpty ? (ok, output) : attempt(cookieArguments: cookies)
+            }
         }
         if cancelled {
             YouTube.deleteLocalFiles(videoID)

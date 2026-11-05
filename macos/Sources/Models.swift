@@ -9,6 +9,12 @@ struct Video: Codable, Identifiable, Hashable {
     var channel: String
 }
 
+struct Account: Equatable {
+    var name: String
+    var handle: String
+    var photo: URL?
+}
+
 struct Channel: Codable, Identifiable, Hashable {
     let id: String
     var name: String

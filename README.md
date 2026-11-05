@@ -18,9 +18,8 @@ YouTube Zero is a native Mac app for your YouTube Watch Later playlist, subscrip
 
 ## Requirements
 
-- macOS 15 or later, with Safari signed in to YouTube
+- macOS 15 or later
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) (`brew install yt-dlp ffmpeg`)
-- Full Disk Access for YouTube Zero, so yt-dlp can read Safari's cookies. Turn it on in System Settings, under Privacy & Security, then Full Disk Access
 - Xcode Command Line Tools to build the app (`xcode-select --install`)
 
 ## Usage
@@ -33,8 +32,20 @@ macos/build.sh
 
 Open YouTube Zero from Applications, Launchpad, or Spotlight. Links to YouTube open in your default browser. Quitting the app stops any downloads in progress and deletes their partial files.
 
+## Signing in
+
+YouTube Zero uses the first of these that is signed in to YouTube:
+
+1. Its own session. Choose Sign In to YouTube from the account menu at the bottom of the sidebar, or from the YouTube Zero menu.
+2. Safari, when YouTube Zero has Full Disk Access (System Settings, then Privacy & Security, then Full Disk Access).
+3. Chrome, Brave, Edge, or Firefox. Reading Chrome's cookies asks for Keychain access once.
+
+The sign-in is saved to `cookies.txt` in the app's Application Support folder, which only your user account can read. It keeps only YouTube's cookies and the Google sign-in cookies behind them.
+
+## Files
+
 - Downloads go to `~/Movies/YouTube Zero`.
-- Playback positions, layout settings, transcripts, and cookies are kept in `~/Library/Application Support/YouTube Zero`.
+- Playback positions, layout settings, transcripts, and the sign-in are kept in `~/Library/Application Support/YouTube Zero`.
 - The log is in `~/Library/Logs/YouTube Zero.log`.
 
 The app is built from the Swift sources in `macos/Sources`. Run `macos/build.sh` again after changing them.
