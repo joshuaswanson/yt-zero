@@ -445,14 +445,12 @@ struct VideoCard: View {
                 if let status, status.isActive {
                     ZStack {
                         Palette.night.opacity(0.55)
-                        if case .downloading(let progress?) = status {
-                            Stopwatch(fraction: progress / 100)
-                        } else {
-                            Stopwatch(fraction: nil)
-                        }
+                        Stopwatch(fraction: progressFraction(status))
                     }
+                    .transition(.opacity)
                 }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: status?.isActive)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .shadow(color: Palette.ink.opacity(hovering ? 0.35 : 0), radius: 9, y: 8)
             .offset(y: hovering && !reduceMotion ? -3 : 0)
@@ -477,19 +475,30 @@ struct VideoCard: View {
         }
     }
 
+    private func progressFraction(_ status: DownloadStatus) -> Double? {
+        if case .downloading(let progress?) = status { return progress / 100 }
+        return nil
+    }
+
     private var meta: some View {
         let text: String
         var failed = false
+        var percent: Int?
         switch status {
         case .queued: text = "Queued"
-        case .downloading(let progress): text = progress.map { "Downloading \(Int($0))%" } ?? "Downloading..."
+        case .downloading(let progress):
+            percent = progress.map { Int($0) }
+            text = percent.map { "Downloading \($0)%" } ?? "Downloading..."
         case .failed:
             text = "Download failed. Click to retry."
             failed = true
         case nil: text = [video.channel, formatAge(video.timestamp)].filter { !$0.isEmpty }.joined(separator: ", ")
         }
-        return Text(text).font(rubik(13)).foregroundStyle(failed ? Palette.caseRed : Palette.slate)
+        return Text(text).font(rubik(13)).monospacedDigit()
+            .foregroundStyle(failed ? Palette.caseRed : Palette.slate)
             .lineLimit(1).truncationMode(.tail)
+            .contentTransition(.numericText(value: Double(percent ?? 0)))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: percent)
     }
 
     @ViewBuilder private var actions: some View {

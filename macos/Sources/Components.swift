@@ -175,31 +175,44 @@ struct PlayTriangle: Shape {
 }
 
 /// Download progress as a stopwatch whose red wedge fills as bytes arrive.
+/// Progress arrives in uneven bursts. A spring retargets on each update
+/// without losing its speed, so the wedge and hand move continuously.
 struct Stopwatch: View {
     let fraction: Double?
-    @State private var spin = false
+    @State private var spunWhileWaiting = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private static let spinPeriod = 1.2
+
     var body: some View {
-        let shown = fraction ?? 0
+        TimelineView(.animation(paused: fraction != nil || reduceMotion)) { context in
+            dial(handDegrees: handDegrees(at: context.date))
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.9), value: fraction)
+        .onAppear { if fraction == nil { spunWhileWaiting = true } }
+    }
+
+    /// After spinning, the hand keeps turning forward into its first position.
+    private func handDegrees(at date: Date) -> Double {
+        if let fraction { return fraction * 360 + (spunWhileWaiting ? 360 : 0) }
+        guard !reduceMotion else { return 0 }
+        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.spinPeriod) / Self.spinPeriod * 360
+    }
+
+    private func dial(handDegrees: Double) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 3).fill(.white).frame(width: 12, height: 9).offset(y: -29.5)
             Circle().fill(.white).frame(width: 56, height: 56).offset(y: 4)
             Circle().fill(Palette.ink).frame(width: 42, height: 42).offset(y: 4)
-            Wedge(fraction: shown).fill(Palette.signal).frame(width: 40, height: 40).offset(y: 4)
+            Wedge(fraction: fraction ?? 0).fill(Palette.signal).frame(width: 40, height: 40).offset(y: 4)
             Capsule().fill(.white).frame(width: 3, height: 20)
-                .rotationEffect(.degrees(fraction == nil ? (spin ? 360 : 0) : shown * 360),
-                                anchor: UnitPoint(x: 0.5, y: 0.925))
+                .rotationEffect(.degrees(handDegrees), anchor: UnitPoint(x: 0.5, y: 0.925))
                 .offset(y: -4.5)
             Circle().fill(.white).frame(width: 7, height: 7).offset(y: 4)
         }
         .frame(width: 60, height: 68)
         .scaleEffect(46 / 60)
         .frame(width: 46, height: 52)
-        .onAppear {
-            guard fraction == nil, !reduceMotion else { return }
-            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { spin = true }
-        }
     }
 }
 
