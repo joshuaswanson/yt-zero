@@ -59,7 +59,6 @@ final class Library: ObservableObject {
     private var active: [String: Download] = [:]
     private var queue: [(id: String, token: UUID)] = []
     private var tokens: [String: UUID] = [:]
-    private var removed: Set<String> = []
     private var timer: Timer?
 
     private init() {
@@ -255,12 +254,10 @@ final class Library: ObservableObject {
 
     // MARK: Watch Later
 
-    /// Downloads stay a subset of Watch Later, so a Subscriptions video is
-    /// saved to Watch Later before it downloads.
     func addToWatchLater(_ id: String) {
-        removed.remove(id)
         guard let video = find(id), !inWatchLater(id) else { return }
         watchLater.append(video)
+        forgetOtherDownload(id)
         Task.detached {
             if YouTube.addToWatchLater(id) { return }
             YouTube.extractCookies()
@@ -270,13 +267,12 @@ final class Library: ObservableObject {
 
     func removeFromWatchLater(_ id: String) {
         let setID = setVideoIDs.removeValue(forKey: id)
-        watchLater.removeAll { $0.id == id }
-        if case .downloading = downloads[id] {
-            removed.insert(id)
-        } else {
-            downloads[id] = nil
-            deleteFiles(id)
+        // A downloaded video stays in Downloaded after it leaves Watch Later.
+        if let video = watchLater.first(where: { $0.id == id }), local[id] != nil || downloads[id] != nil {
+            otherDownloads[id] = video
+            writeJSON(otherDownloads, to: Paths.otherDownloads)
         }
+        watchLater.removeAll { $0.id == id }
         Task.detached {
             if let setID, YouTube.removeFromWatchLater(id, setVideoID: setID) { return }
             YouTube.extractCookies()
@@ -343,10 +339,6 @@ final class Library: ObservableObject {
         while active.count < Self.downloadConcurrency, !queue.isEmpty {
             let (id, token) = queue.removeFirst()
             guard tokens[id] == token else { continue }
-            if removed.contains(id) {
-                downloads[id] = nil
-                continue
-            }
             downloads[id] = .downloading(progress: nil)
             let job = Download(videoID: id) { percent in
                 Task { @MainActor in
@@ -372,9 +364,7 @@ final class Library: ObservableObject {
         tokens[id] = nil
         if ok {
             downloads[id] = nil
-            if removed.contains(id) {
-                deleteFiles(id)
-            } else if pendingPlay == id, playing == nil {
+            if pendingPlay == id, playing == nil {
                 pendingPlay = nil
                 play(id)
             }

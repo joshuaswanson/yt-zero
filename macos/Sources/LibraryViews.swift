@@ -160,7 +160,7 @@ struct LibraryView: View {
                         Text(emptyText(section)).font(rubik(17)).foregroundStyle(Palette.slate)
                             .lineSpacing(3).frame(maxWidth: 440, alignment: .leading)
                     } else {
-                        VideoList(videos: videos, mode: section == .channel ? .subscriptions : section)
+                        VideoList(videos: videos)
                     }
                     LoadMore()
                 }
@@ -373,18 +373,17 @@ struct ToolsNotice: View {
 
 struct VideoList: View {
     let videos: [Video]
-    let mode: Section
     @EnvironmentObject var library: Library
 
     var body: some View {
         if library.settings.view == .grid {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 22, alignment: .top)],
                       alignment: .leading, spacing: 30) {
-                ForEach(videos) { VideoCard(video: $0, mode: mode, layout: .grid) }
+                ForEach(videos) { VideoCard(video: $0, layout: .grid) }
             }
         } else {
             LazyVStack(alignment: .leading, spacing: 16) {
-                ForEach(videos) { VideoCard(video: $0, mode: mode, layout: .list) }
+                ForEach(videos) { VideoCard(video: $0, layout: .list) }
             }
         }
     }
@@ -392,7 +391,6 @@ struct VideoList: View {
 
 struct VideoCard: View {
     let video: Video
-    let mode: Section
     let layout: Layout
     @EnvironmentObject var library: Library
     @State private var hovering = false
@@ -501,44 +499,32 @@ struct VideoCard: View {
             .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: percent)
     }
 
+    /// The same three buttons in every section: YouTube, download, and Watch Later.
     @ViewBuilder private var actions: some View {
         let id = video.id
-        let fetching = status?.isActive == true
         HStack(spacing: 0) {
-            if mode != .downloaded {
-                IconButton(icon: .youtube, help: "Open on YouTube", size: 34) {
-                    library.openOnYouTube(id)
-                }
-            }
-            if fetching {
+            IconButton(icon: .youtube, help: "Open on YouTube", size: 34) { library.openOnYouTube(id) }
+            if status?.isActive == true {
                 IconButton(icon: .stop, help: "Stop download", size: 34, hoverColor: Palette.caseRed) {
                     library.cancel(id)
                 }
-            } else if isLocal && mode != .downloaded {
+            } else if isLocal {
                 IconButton(icon: .done, help: "Delete download", size: 34, color: Palette.done,
                            hoverColor: Palette.caseRed, hoverIcon: .undownload) {
                     library.deleteDownload(id)
                 }
-            } else if mode != .downloaded {
+            } else {
                 IconButton(icon: .download, help: "Download", size: 34) {
                     library.download(id, saveToWatchLater: library.settings.section != .channel)
                 }
             }
-            if mode == .subscriptions {
-                if library.inWatchLater(id) {
-                    IconView(icon: .inWatchLater).foregroundStyle(Palette.done)
-                        .frame(width: 34, height: 34).help("In Watch Later")
-                } else {
-                    IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) {
-                        library.addToWatchLater(id)
-                    }
-                }
-            } else if mode == .watchLater {
-                IconButton(icon: .trash, help: "Remove from Watch Later", size: 34) {
+            if library.inWatchLater(id) {
+                IconButton(icon: .inWatchLater, help: "Remove from Watch Later", size: 34, color: Palette.done,
+                           hoverColor: Palette.caseRed, hoverIcon: .removeWatchLater) {
                     library.removeFromWatchLater(id)
                 }
-            } else if isLocal {
-                IconButton(icon: .trash, help: "Delete download", size: 34) { library.deleteDownload(id) }
+            } else {
+                IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) { library.addToWatchLater(id) }
             }
         }
     }
