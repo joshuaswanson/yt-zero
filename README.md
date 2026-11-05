@@ -30,7 +30,7 @@ This starts the server at http://127.0.0.1:8765, or at the next free port up to 
 
 To use WatchBar as its own window, run `./window.sh`, or a `.command` file that runs it. It starts the server and opens the app in a new Safari window. Closing that window stops the server and any downloads in progress. A reload keeps the server running. If the server is already running, it opens another window.
 
-Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are stored in the browser.
+Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are saved in `.cache/prefs.json`, so every browser and port shares them.
 
 ## Fonts
 

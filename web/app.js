@@ -47,25 +47,33 @@ const WEDGE_C = 2 * Math.PI * 10;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
-const store = {
-  get(key, fallback) {
-    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-  },
-  set(key, value) { localStorage.setItem(key, JSON.stringify(value)); },
+const settings = {
+  section: "watchLater", view: "grid", sorts: {},
+  speed: 1, captions: false, transcript: false,
 };
-
-const settings = Object.assign(
-  { section: "watchLater", view: "grid", sorts: {},
-    speed: 1, captions: false, transcript: false },
-  store.get("wb.settings", {}),
-);
+const positions = {};
 const isFeed = (section) => section === "subscriptions" || section === "channel";
-if (!SECTION_TITLES[settings.section] && !(settings.section === "channel" && settings.channel)) {
-  settings.section = "watchLater";
+
+function send(path, body) {
+  fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    keepalive: true,
+  }).catch(() => {});
 }
-const saveSettings = () => store.set("wb.settings", settings);
-const positions = store.get("wb.positions", {});
-const savePositions = () => store.set("wb.positions", positions);
+const saveSettings = () => send("/api/settings", { settings });
+
+async function loadPrefs() {
+  try {
+    const prefs = await api("/api/prefs");
+    Object.assign(settings, prefs.settings || {});
+    Object.assign(positions, prefs.positions);
+  } catch {}
+  if (!SECTION_TITLES[settings.section] && !(settings.section === "channel" && settings.channel)) {
+    settings.section = "watchLater";
+  }
+}
 
 let state = { watchLater: [], subscriptions: [], downloads: {}, local: new Set(), loading: true, error: null };
 let pendingPlay = null;
@@ -113,12 +121,22 @@ async function api(path, body) {
 
 function applyState(data) {
   state = { ...data, local: new Set(data.local) };
+  syncPositions(data.positions || {});
   if (pendingPlay && state.local.has(pendingPlay) && $(".theater").hidden) {
     const id = pendingPlay;
     pendingPlay = null;
     openPlayer(id);
   }
   render();
+}
+
+function syncPositions(saved) {
+  for (const id of Object.keys(positions)) {
+    if (!(id in saved) && id !== playing?.id) delete positions[id];
+  }
+  for (const [id, seconds] of Object.entries(saved)) {
+    if (id !== playing?.id) positions[id] = seconds;
+  }
 }
 
 let pollTimer = null;
@@ -635,9 +653,13 @@ function rememberPosition(force) {
   const now = Date.now();
   if (!force && now - lastSave < 5000) return;
   lastSave = now;
-  if (videoEl.ended) delete positions[playing.id];
-  else if (videoEl.currentTime > 0) positions[playing.id] = Math.round(videoEl.currentTime * 10) / 10;
-  savePositions();
+  if (videoEl.ended) {
+    delete positions[playing.id];
+    send("/api/position", { id: playing.id, seconds: null });
+  } else if (videoEl.currentTime > 0) {
+    positions[playing.id] = Math.round(videoEl.currentTime * 10) / 10;
+    send("/api/position", { id: playing.id, seconds: positions[playing.id] });
+  }
 }
 
 function applyCaptions() {
@@ -958,14 +980,15 @@ $('[data-view="list"]').innerHTML = icon("list");
 $('[data-action="close-player"]').innerHTML = icon("back");
 $('[data-action="captions"]').innerHTML = icon("captions");
 $('[data-action="transcript"]').innerHTML = icon("transcript");
-applySpeed();
-
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 window.addEventListener("pagehide", () => {
   rememberPosition(true);
   navigator.sendBeacon("/api/bye");
 });
-render();
-poll();
-loadChannels();
-if (settings.section === "channel") loadChannelVideos();
+loadPrefs().then(() => {
+  applySpeed();
+  render();
+  poll();
+  loadChannels();
+  if (settings.section === "channel") loadChannelVideos();
+});

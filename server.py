@@ -29,6 +29,7 @@ CHANNEL_PAGE = 30
 CHANNEL_VIDEOS_MAX_AGE = 600
 OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
 SERVER_FILE = os.path.join(youtube.CACHE_DIR, "server.json")
+PREFS_FILE = os.path.join(youtube.CACHE_DIR, "prefs.json")
 CLOSE_GRACE = 5
 IDLE_LIMIT = 1800
 
@@ -73,6 +74,7 @@ class Library:
                 "otherDownloads": [v for vid, v in self.other_downloads.items()
                                    if vid not in watch_later_ids],
                 "local": sorted(youtube.local_files()),
+                "positions": prefs.positions(),
             }
 
     def refresh(self):
@@ -354,6 +356,50 @@ def _write_json(path, data):
 library = Library()
 
 
+class Prefs:
+    """Layout settings and resume positions, shared by every browser and port."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        data = _read_json(PREFS_FILE, {})
+        self.data = {"settings": data.get("settings"),
+                     "positions": data.get("positions") or {}}
+
+    def _save(self):
+        _write_json(PREFS_FILE, self.data)
+
+    def get(self):
+        with self.lock:
+            return {"settings": self.data["settings"],
+                    "positions": dict(self.data["positions"])}
+
+    def positions(self):
+        with self.lock:
+            return dict(self.data["positions"])
+
+    def set_settings(self, settings):
+        with self.lock:
+            self.data["settings"] = settings
+            self._save()
+
+    def set_position(self, vid, seconds):
+        with self.lock:
+            if seconds is None:
+                self.data["positions"].pop(vid, None)
+            else:
+                self.data["positions"][vid] = seconds
+            self._save()
+
+
+def _valid_position(vid, seconds):
+    return (isinstance(vid, str) and re.fullmatch(r"[\w-]{11}", vid) is not None
+            and isinstance(seconds, (int, float)) and not isinstance(seconds, bool)
+            and seconds >= 0)
+
+
+prefs = Prefs()
+
+
 class Presence:
     """Tracks whether the page is still open, so a server launched for one
     window can stop when that window closes. Reloading the page sends a new
@@ -418,6 +464,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/state":
             return self._json(library.snapshot())
+        if path == "/api/prefs":
+            return self._json(prefs.get())
         if path == "/api/ping":
             return self._json({"app": "watchbar"})
         m = re.fullmatch(r"/api/channel/(UC[\w-]{22})", path)
@@ -469,6 +517,20 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
         except ValueError:
             body = {}
+        if path == "/api/settings":
+            if not isinstance(body.get("settings"), dict):
+                return self._json({"error": "bad settings"}, HTTPStatus.BAD_REQUEST)
+            prefs.set_settings(body["settings"])
+            return self._json({})
+        if path == "/api/position":
+            vid, seconds = body.get("id"), body.get("seconds")
+            if seconds is None and isinstance(vid, str) and re.fullmatch(r"[\w-]{11}", vid):
+                prefs.set_position(vid, None)
+            elif _valid_position(vid, seconds):
+                prefs.set_position(vid, seconds)
+            else:
+                return self._json({"error": "bad position"}, HTTPStatus.BAD_REQUEST)
+            return self._json({})
         if path == "/api/subscription":
             channel = body.get("channel") or {}
             if not re.fullmatch(r"UC[\w-]{22}", str(channel.get("id", ""))):
