@@ -10,8 +10,7 @@
   </defs>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
   <g transform="translate(512 512) scale(15) translate(-15 -20)">
-    <ellipse cx="15" cy="20" rx="15" ry="20" fill="#c20027"/>
-    <ellipse cx="15" cy="20" rx="10.5" ry="15.5" fill="#ffffff"/>
-    <path d="M11.5 15 L11.5 25 L19.5 20 Z" fill="#ff0033" stroke="#ff0033" stroke-width="3" stroke-linejoin="round"/>
+    <rect width="30" height="40" rx="15" fill="#ff0033"/>
+    <path d="M11.5 14 L11.5 26 L21.5 20 Z" fill="#ffffff" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
   </g>
 </svg>
