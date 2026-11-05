@@ -406,7 +406,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 .line.chapter .at { font: 400 12.5px/1.45 var(--body); padding-top: 3px; color: var(--night-slate); }
 
 @media (max-width: 760px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; height: auto; margin: 10px 10px 0; padding: 14px; }
   .brand { margin-bottom: 12px; }
   .sections { display: flex; gap: 4px; overflow-x: auto; }
