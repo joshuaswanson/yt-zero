@@ -34,7 +34,7 @@ enum YouTube {
 
         var name: String {
             switch self {
-            case .app: "YouTube Zero"
+            case .app: "YT Zero"
             case .safari: "Safari"
             case .chrome: "Chrome"
             case .brave: "Brave"
@@ -76,7 +76,7 @@ enum YouTube {
     /// private temporary directory and only YouTube and Google cookies are kept.
     private static func extractCookies(from source: CookieSource) -> Bool {
         try? FileManager.default.removeItem(at: Paths.cookies)
-        let export = FileManager.default.temporaryDirectory.appendingPathComponent("youtube-zero-export-\(UUID().uuidString).txt")
+        let export = FileManager.default.temporaryDirectory.appendingPathComponent("yt-zero-export-\(UUID().uuidString).txt")
         defer { try? FileManager.default.removeItem(at: export) }
         _ = run(Tools.ytDlp, [
             "--ignore-config", "--cookies-from-browser", source.rawValue, "--cookies", export.path,
@@ -132,7 +132,7 @@ enum YouTube {
     /// yt-dlp writes its cookie jar back when it exits, so each run gets a
     /// private copy and parallel downloads never write the same file.
     static func withCookies<T>(_ body: ([String]) -> T) -> T {
-        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("youtube-zero-\(UUID().uuidString).txt")
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("yt-zero-\(UUID().uuidString).txt")
         guard (try? FileManager.default.copyItem(at: Paths.cookies, to: copy)) != nil else { return body([]) }
         defer { try? FileManager.default.removeItem(at: copy) }
         return body(["--cookies", copy.path])

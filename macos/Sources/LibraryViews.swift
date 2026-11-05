@@ -36,7 +36,7 @@ struct Sidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 BrandMark()
-                Text("YouTube Zero").font(rubik(22, 700)).kerning(-0.2).foregroundStyle(Palette.signal)
+                Text("YT Zero").font(rubik(22, 700)).kerning(-0.2).foregroundStyle(Palette.signal)
                     .lineLimit(1).fixedSize()
             }
             .padding(.leading, 10)
@@ -92,7 +92,7 @@ struct AccountRow: View {
         if let source = library.cookieSource {
             let account = library.account
             Menu {
-                SwiftUI.Section(source == .app ? "Signed in to YouTube Zero" : "Using your sign-in from \(source.name)") {
+                SwiftUI.Section(source == .app ? "Signed in to YT Zero" : "Using your sign-in from \(source.name)") {
                     if source == .app {
                         Button("Sign Out of YouTube") { library.signOut() }
                     } else {
@@ -389,12 +389,12 @@ struct SignInNotice: View {
 
     var body: some View {
         NoticeCard(title: "Sign in to YouTube") {
-            Text("YouTube Zero needs your YouTube account to show Watch Later, your subscriptions, and your channels.")
+            Text("YT Zero needs your YouTube account to show Watch Later, your subscriptions, and your channels.")
                 .font(rubik(16)).foregroundStyle(Palette.slate).lineSpacing(4).padding(.bottom, 22)
             PillButton(title: "Sign in", height: 42, weight: 600) { library.showSignIn = true }
                 .padding(.bottom, 22)
-            Text("YouTube Zero also uses your YouTube sign-in from Chrome, Brave, Edge, or Firefox. "
-                 + "To use Safari's, turn on Full Disk Access for YouTube Zero, then refresh.")
+            Text("YT Zero also uses your YouTube sign-in from Chrome, Brave, Edge, or Firefox. "
+                 + "To use Safari's, turn on Full Disk Access for YT Zero, then refresh.")
                 .font(rubik(14)).foregroundStyle(Palette.slate).lineSpacing(3).padding(.bottom, 12)
             PillButton(title: "Open Full Disk Access settings", background: Palette.mist, foreground: Palette.ink,
                        hoverBackground: Palette.hover, hoverForeground: Palette.ink, height: 34) {
@@ -407,8 +407,8 @@ struct SignInNotice: View {
 struct ToolsNotice: View {
     var body: some View {
         NoticeCard(title: "Install yt-dlp and ffmpeg") {
-            Text("YouTube Zero uses yt-dlp to read your library and download videos, and ffmpeg to read transcripts. "
-                 + "Install them with Homebrew, then quit YouTube Zero and open it again.")
+            Text("YT Zero uses yt-dlp to read your library and download videos, and ffmpeg to read transcripts. "
+                 + "Install them with Homebrew, then quit YT Zero and open it again.")
                 .font(rubik(16)).foregroundStyle(Palette.slate).lineSpacing(4).padding(.bottom, 16)
             Text("brew install yt-dlp ffmpeg")
                 .font(.system(size: 14, design: .monospaced)).textSelection(.enabled)

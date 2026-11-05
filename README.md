@@ -1,8 +1,8 @@
-# YouTube Zero
+# YT Zero
 
 YouTube with zero ads, zero Shorts, and zero lag. Just the videos.
 
-YouTube Zero is a native Mac app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos and plays them with a transcript.
+YT Zero is a native Mac app for your YouTube Watch Later playlist, subscriptions, and channels. It downloads videos and plays them with a transcript.
 
 ## Features
 
@@ -30,23 +30,23 @@ Build the app and install it in `/Applications`:
 macos/build.sh
 ```
 
-Open YouTube Zero from Applications, Launchpad, or Spotlight. Links to YouTube open in your default browser. Quitting the app stops any downloads in progress and deletes their partial files.
+Open YT Zero from Applications, Launchpad, or Spotlight. Links to YouTube open in your default browser. Quitting the app stops any downloads in progress and deletes their partial files.
 
 ## Signing in
 
-YouTube Zero uses the first of these that is signed in to YouTube:
+YT Zero uses the first of these that is signed in to YouTube:
 
-1. Its own session. Choose Sign In to YouTube from the account menu at the bottom of the sidebar, or from the YouTube Zero menu.
-2. Safari, when YouTube Zero has Full Disk Access (System Settings, then Privacy & Security, then Full Disk Access).
+1. Its own session. Choose Sign In to YouTube from the account menu at the bottom of the sidebar, or from the YT Zero menu.
+2. Safari, when YT Zero has Full Disk Access (System Settings, then Privacy & Security, then Full Disk Access).
 3. Chrome, Brave, Edge, or Firefox. Reading Chrome's cookies asks for Keychain access once.
 
 The sign-in is saved to `cookies.txt` in the app's Application Support folder, which only your user account can read. It keeps only YouTube's cookies and the Google sign-in cookies behind them.
 
 ## Files
 
-- Downloads go to `~/Movies/YouTube Zero`.
-- Playback positions, layout settings, transcripts, and the sign-in are kept in `~/Library/Application Support/YouTube Zero`.
-- The log is in `~/Library/Logs/YouTube Zero.log`.
+- Downloads go to `~/Movies/YT Zero`.
+- Playback positions, layout settings, transcripts, and the sign-in are kept in `~/Library/Application Support/YT Zero`.
+- The log is in `~/Library/Logs/YT Zero.log`.
 
 The app is built from the Swift sources in `macos/Sources`. Run `macos/build.sh` again after changing them.
 

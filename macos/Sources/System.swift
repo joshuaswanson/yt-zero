@@ -2,15 +2,15 @@ import Foundation
 
 enum Paths {
     static let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("YouTube Zero")
+        .appendingPathComponent("YT Zero")
     static let downloads = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Movies/YouTube Zero")
+        .appendingPathComponent("Movies/YT Zero")
     static let transcripts = support.appendingPathComponent("transcripts")
     static let cookies = support.appendingPathComponent("cookies.txt")
     static let prefs = support.appendingPathComponent("prefs.json")
     static let otherDownloads = support.appendingPathComponent("other_downloads.json")
     static let log = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/YouTube Zero.log")
+        .appendingPathComponent("Library/Logs/YT Zero.log")
     static let safariCookies = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies")
 

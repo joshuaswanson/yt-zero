@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 @main
-struct YouTubeZeroApp: App {
+struct YTZeroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var library = Library.shared
 
     var body: some Scene {
-        Window("YouTube Zero", id: "main") {
+        Window("YT Zero", id: "main") {
             ContentView()
                 .environmentObject(library)
                 .task { library.start() }
