@@ -79,16 +79,15 @@ svg.icon { width: 21px; height: 21px; fill: currentColor; }
   margin: 0 0 30px 10px; color: var(--signal); text-decoration: none;
   font: 700 22px/1 var(--body); letter-spacing: -0.01em; white-space: nowrap;
 }
-.brand-mark {
-  width: 26px; height: 30px; fill: var(--case);
-  transform-origin: 50% 90%; animation: ding 0.8s 0.3s ease-in-out;
-}
+.brand-mark { width: 23px; height: 30px; fill: var(--case); }
 .brand-mark .dial { fill: #fff; }
-.brand-mark .hand { fill: var(--signal); stroke: var(--signal); stroke-width: 3; stroke-linejoin: round; }
-@keyframes ding {
-  25% { transform: rotate(-12deg); }
-  55% { transform: rotate(8deg); }
-  80% { transform: rotate(-3deg); }
+.brand-mark .hand {
+  fill: var(--signal); stroke: var(--signal); stroke-width: 3; stroke-linejoin: round;
+  transform-box: fill-box; transform-origin: center; animation: pop 0.7s 0.3s ease-in-out;
+}
+@keyframes pop {
+  35% { transform: scale(0.55); }
+  70% { transform: scale(1.15); }
 }
 
 .sections { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -422,7 +421,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; bo
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .theater, .brand-mark { animation: none; }
+  .theater, .brand-mark .hand { animation: none; }
   .spin svg, .stopwatch.waiting .hand { animation: none; }
   .flash.show { animation-name: fade; }
   .icon-btn, .controls .icon-btn, .subscribe, .load-more, .thumb, input[type="range"]::-webkit-slider-thumb { transition: none; }
