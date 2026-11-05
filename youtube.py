@@ -16,6 +16,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(ROOT, "downloads")
 CACHE_DIR = os.path.join(ROOT, ".cache")
 COOKIE_FILE = os.path.join(CACHE_DIR, "cookies.txt")
+SAFARI_COOKIES = os.path.expanduser(
+    "~/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies")
 TRANSCRIPT_DIR = os.path.join(CACHE_DIR, "transcripts")
 CAPTION_DIR = os.path.join(CACHE_DIR, "captions")
 
@@ -42,6 +44,16 @@ def cookies_are_fresh():
     if not os.path.exists(COOKIE_FILE):
         return False
     return time.time() - os.path.getmtime(COOKIE_FILE) < COOKIE_MAX_AGE
+
+
+def can_read_safari_cookies():
+    try:
+        with open(SAFARI_COOKIES, "rb"):
+            return True
+    except PermissionError:
+        return False
+    except OSError:
+        return True
 
 
 def extract_cookies():

@@ -8,6 +8,7 @@ import json
 import mimetypes
 import os
 import re
+import signal
 import sys
 import threading
 import time
@@ -28,10 +29,7 @@ CHANNELS_MAX_AGE = 3600
 CHANNEL_PAGE = 30
 CHANNEL_VIDEOS_MAX_AGE = 600
 OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
-SERVER_FILE = os.path.join(youtube.CACHE_DIR, "server.json")
 PREFS_FILE = os.path.join(youtube.CACHE_DIR, "prefs.json")
-CLOSE_GRACE = 5
-IDLE_LIMIT = 1800
 
 
 class Library:
@@ -92,7 +90,11 @@ class Library:
             if not youtube.cookies_are_fresh():
                 youtube.extract_cookies()
             watch_later = youtube.fetch_watch_later()
-            if watch_later is None:
+            if watch_later is None and not youtube.can_read_safari_cookies():
+                error = ("YouTube Zero can't read your YouTube sign-in from Safari. "
+                         "Turn on YouTube Zero in System Settings, under Privacy & "
+                         "Security, then Full Disk Access. Then quit and reopen the app.")
+            elif watch_later is None:
                 error = ("Watch Later did not load. Check that Safari is "
                          "signed in to YouTube.")
             subscriptions, subscriptions_end = youtube.fetch_subscriptions(days)
@@ -400,39 +402,19 @@ def _valid_position(vid, seconds):
 prefs = Prefs()
 
 
-class Presence:
-    """Tracks whether the page is still open, so a server launched for one
-    window can stop when that window closes. Reloading the page sends a new
-    request within CLOSE_GRACE seconds, which keeps the server running."""
-
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.last_seen = time.time()
-        self.closed_at = None
-
-    def seen(self):
-        with self.lock:
-            self.last_seen = time.time()
-            self.closed_at = None
-
-    def closed(self):
-        with self.lock:
-            self.closed_at = time.time()
-
-    def watch(self):
-        while True:
-            time.sleep(1)
-            now = time.time()
-            with self.lock:
-                closed = self.closed_at and now - self.closed_at > CLOSE_GRACE
-                idle = now - self.last_seen > IDLE_LIMIT
-            if closed or idle:
-                print("[exit] page closed" if closed else "[exit] page idle")
-                library.cancel_all()
-                os._exit(0)
+def stop(reason):
+    print(f"[exit] {reason}")
+    library.cancel_all()
+    os._exit(0)
 
 
-presence = Presence()
+def watch_parent(pid):
+    while True:
+        time.sleep(1)
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            stop("app quit")
 
 
 def auto_refresh():
@@ -460,14 +442,11 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
     def do_GET(self):
-        presence.seen()
         path = urlparse(self.path).path
         if path == "/api/state":
             return self._json(library.snapshot())
         if path == "/api/prefs":
             return self._json(prefs.get())
-        if path == "/api/ping":
-            return self._json({"app": "youtube-zero"})
         m = re.fullmatch(r"/api/channel/(UC[\w-]{22})", path)
         if m:
             query = parse_qs(urlparse(self.path).query)
@@ -507,11 +486,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._static(path)
 
     def do_POST(self):
-        presence.seen()
         path = urlparse(self.path).path
-        if path == "/api/bye":
-            presence.closed()
-            return self._json({})
         length = int(self.headers.get("Content-Length") or 0)
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
@@ -621,12 +596,12 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     library.refresh()
     threading.Thread(target=auto_refresh, daemon=True).start()
-    if os.environ.get("YOUTUBE_ZERO_EXIT_WHEN_CLOSED"):
-        threading.Thread(target=presence.watch, daemon=True).start()
+    signal.signal(signal.SIGTERM, lambda *_: stop("terminated"))
+    parent = os.environ.get("YOUTUBE_ZERO_PARENT_PID")
+    if parent:
+        threading.Thread(target=watch_parent, args=(int(parent),), daemon=True).start()
     server = bind()
-    port = server.server_address[1]
-    _write_json(SERVER_FILE, {"port": port})
-    url = f"http://{HOST}:{port}/"
+    url = f"http://{HOST}:{server.server_address[1]}/"
     print(f"YouTube Zero is running at {url}")
     if not os.environ.get("YOUTUBE_ZERO_NO_BROWSER"):
         webbrowser.open(url)

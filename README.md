@@ -20,17 +20,28 @@ YouTube Zero is a local web app for your YouTube Watch Later playlist, subscript
 
 - macOS with Safari signed in to YouTube
 - [uv](https://docs.astral.sh/uv/), [yt-dlp](https://github.com/yt-dlp/yt-dlp), and [ffmpeg](https://ffmpeg.org/) (`brew install uv yt-dlp ffmpeg`)
-- Full Disk Access for the app that runs the server (for example Terminal), so yt-dlp can read Safari's cookies
+- Full Disk Access for YouTube Zero (or for Terminal when you use `run.sh`), so yt-dlp can read Safari's cookies. Turn it on in System Settings, under Privacy & Security, then Full Disk Access
+- Xcode Command Line Tools to build the Mac app (`xcode-select --install`)
 
 ## Usage
+
+Build the Mac app and install it in `/Applications`:
+
+```bash
+macos/build.sh
+```
+
+Open YouTube Zero from Applications, Launchpad, or Spotlight. It starts the server in the background and shows the library in its own window. Quitting the app stops the server and any downloads in progress. Links to YouTube open in your default browser. The server log is in `~/Library/Logs/YouTube Zero.log`.
+
+The app runs the code in this folder, so changes to the server or the web files take effect the next time you open it. Run `macos/build.sh` again after moving this folder or changing anything in `macos/`.
+
+To use a browser, run:
 
 ```bash
 ./run.sh
 ```
 
-This starts the server at http://127.0.0.1:8765, or at the next free port up to 8784, and opens it in your browser. The page works while the server runs.
-
-To use YouTube Zero as its own window, run `./window.sh`, or a `.command` file that runs it. It starts the server and opens the app in a new Safari window. Closing that window stops the server and any downloads in progress. A reload keeps the server running. If the server is already running, it opens another window.
+This starts the server at http://127.0.0.1:8765, or at the next free port up to 8784, and opens it in your browser.
 
 Downloads go to `downloads/`. Transcripts, subtitles, and cookies are cached in `.cache/`. Playback positions and layout settings are saved in `.cache/prefs.json`, so every browser and port shares them.
 

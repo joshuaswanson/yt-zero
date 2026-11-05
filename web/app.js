@@ -983,7 +983,6 @@ $('[data-action="transcript"]').innerHTML = icon("transcript");
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 window.addEventListener("pagehide", () => {
   rememberPosition(true);
-  navigator.sendBeacon("/api/bye");
 });
 loadPrefs().then(() => {
   applySpeed();
