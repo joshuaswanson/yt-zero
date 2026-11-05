@@ -1,3 +1,5 @@
+<img src="macos/icon.svg" width="128" alt="YT Zero icon">
+
 # YT Zero
 
 YouTube with zero ads, zero Shorts, and zero lag. Just the videos.
