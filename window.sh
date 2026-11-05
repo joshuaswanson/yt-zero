@@ -4,18 +4,25 @@
 cd "$(dirname "$0")" || exit 1
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-PORT=8765
-URL="http://127.0.0.1:$PORT/"
+SERVER_FILE=".cache/server.json"
+
+running_port() {
+  local port
+  port=$(sed -n 's/.*"port": *\([0-9]*\).*/\1/p' "$SERVER_FILE" 2>/dev/null)
+  [ -n "$port" ] || return 1
+  curl -sf "http://127.0.0.1:$port/api/ping" | grep -q '"watchbar"' || return 1
+  echo "$port"
+}
 
 open_window() {
   osascript -e "tell application \"Safari\"" \
-    -e "make new document with properties {URL:\"$URL\"}" \
+    -e "make new document with properties {URL:\"http://127.0.0.1:$1/\"}" \
     -e "activate" -e "end tell" >/dev/null
 }
 
-if lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null; then
+if port=$(running_port); then
   echo "WatchBar is already running. Opening another window."
-  open_window
+  open_window "$port"
   exit 0
 fi
 
@@ -29,13 +36,14 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT HUP TERM
 
+rm -f "$SERVER_FILE"
 WATCHBAR_WEB_NO_BROWSER=1 WATCHBAR_EXIT_WHEN_CLOSED=1 uv run server.py &
 server=$!
 
-until curl -s -o /dev/null "$URL"; do
+until port=$(running_port); do
   kill -0 "$server" 2>/dev/null || exit 1
   sleep 0.5
 done
 
-open_window
+open_window "$port"
 wait "$server"

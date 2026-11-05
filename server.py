@@ -3,6 +3,7 @@
 # ///
 """Local web server for the Watchbar library. Run with `uv run server.py`."""
 
+import errno
 import json
 import mimetypes
 import os
@@ -18,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 import youtube
 
 HOST = "127.0.0.1"
-PORT = 8765
+PORTS = range(8765, 8785)
 WEB_DIR = os.path.join(youtube.ROOT, "web")
 AUTO_REFRESH_INTERVAL = 300
 DOWNLOAD_CONCURRENCY = 3
@@ -27,6 +28,7 @@ CHANNELS_MAX_AGE = 3600
 CHANNEL_PAGE = 30
 CHANNEL_VIDEOS_MAX_AGE = 600
 OTHER_DOWNLOADS_FILE = os.path.join(youtube.CACHE_DIR, "other_downloads.json")
+SERVER_FILE = os.path.join(youtube.CACHE_DIR, "server.json")
 CLOSE_GRACE = 5
 IDLE_LIMIT = 1800
 
@@ -416,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/state":
             return self._json(library.snapshot())
+        if path == "/api/ping":
+            return self._json({"app": "watchbar"})
         m = re.fullmatch(r"/api/channel/(UC[\w-]{22})", path)
         if m:
             query = parse_qs(urlparse(self.path).query)
@@ -541,14 +545,26 @@ class Handler(BaseHTTPRequestHandler):
             pass  # the browser cancels range requests while seeking
 
 
+def bind():
+    for port in PORTS:
+        try:
+            return ThreadingHTTPServer((HOST, port), Handler)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE:
+                raise
+    sys.exit(f"Ports {PORTS.start} to {PORTS.stop - 1} are all in use.")
+
+
 def main():
     sys.stdout.reconfigure(line_buffering=True)
     library.refresh()
     threading.Thread(target=auto_refresh, daemon=True).start()
     if os.environ.get("WATCHBAR_EXIT_WHEN_CLOSED"):
         threading.Thread(target=presence.watch, daemon=True).start()
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
-    url = f"http://{HOST}:{PORT}/"
+    server = bind()
+    port = server.server_address[1]
+    _write_json(SERVER_FILE, {"port": port})
+    url = f"http://{HOST}:{port}/"
     print(f"Watchbar web is running at {url}")
     if not os.environ.get("WATCHBAR_WEB_NO_BROWSER"):
         webbrowser.open(url)
