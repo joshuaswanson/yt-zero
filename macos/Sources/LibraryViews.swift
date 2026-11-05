@@ -553,23 +553,19 @@ struct VideoCard: View {
         let id = video.id
         HStack(spacing: 0) {
             IconButton(icon: .youtube, help: "Open on YouTube", size: 34) { library.openOnYouTube(id) }
+            // Each toggle keeps one shape: an outline when off, filled green when
+            // on, and red on hover when clicking would undo it.
             if library.inWatchLater(id) {
                 IconButton(icon: .inWatchLater, help: "Remove from Watch Later", size: 34, color: Palette.done,
-                           hoverColor: Palette.caseRed, hoverIcon: .removeWatchLater) {
-                    library.removeFromWatchLater(id)
-                }
+                           hoverColor: Palette.caseRed) { library.removeFromWatchLater(id) }
             } else {
                 IconButton(icon: .watchLater, help: "Add to Watch Later", size: 34) { library.addToWatchLater(id) }
             }
-            if status?.isActive == true {
-                IconButton(icon: .stop, help: "Stop download", size: 34, hoverColor: Palette.caseRed) {
-                    library.cancel(id)
-                }
+            if let status, status.isActive {
+                DownloadProgressButton(fraction: progressFraction(status)) { library.cancel(id) }
             } else if isLocal {
-                IconButton(icon: .done, help: "Delete download", size: 34, color: Palette.done,
-                           hoverColor: Palette.caseRed, hoverIcon: .undownload) {
-                    library.deleteDownload(id)
-                }
+                IconButton(icon: .downloaded, help: "Delete download", size: 34, color: Palette.done,
+                           hoverColor: Palette.caseRed) { library.deleteDownload(id) }
             } else {
                 IconButton(icon: .download, help: "Download", size: 34) {
                     library.download(id, saveToWatchLater: library.settings.section != .channel)

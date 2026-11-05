@@ -234,3 +234,41 @@ struct Wedge: Shape {
         return path
     }
 }
+
+/// A download in progress: a red ring that fills as it downloads, around a
+/// stop square. While yt-dlp is still starting, a short arc spins.
+struct DownloadProgressButton: View {
+    let fraction: Double?
+    let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().stroke(Palette.hover, lineWidth: 2.5)
+                TimelineView(.animation(paused: fraction != nil || reduceMotion)) { context in
+                    let spin = fraction == nil && !reduceMotion
+                        ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1) * 360 : 0
+                    Circle()
+                        .trim(from: 0, to: fraction ?? 0.25)
+                        .stroke(Palette.signal, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90 + spin))
+                }
+                .animation(reduceMotion ? nil : .smooth(duration: 0.9), value: fraction)
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(hovering ? Palette.caseRed : Palette.ink)
+                    .frame(width: 7, height: 7)
+            }
+            .frame(width: 19, height: 19)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(hovering ? Palette.hover.opacity(0.6) : .clear))
+            .contentShape(Circle())
+        }
+        .buttonStyle(PressScale())
+        .focusable(false)
+        .onHover { hovering = $0 }
+        .help("Stop download")
+        .accessibilityLabel("Stop download")
+    }
+}
