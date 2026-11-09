@@ -108,6 +108,8 @@ struct PillButton: View {
         Button(action: action) {
             Text(title)
                 .font(rubik(15, weight))
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundStyle(hot ? hoverForeground : foreground)
                 .padding(.horizontal, height / 2)
                 .frame(height: height)
