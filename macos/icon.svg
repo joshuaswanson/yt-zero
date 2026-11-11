@@ -27,8 +27,8 @@
       <stop offset="1" stop-color="#7a0018" stop-opacity="0.18"/>
     </linearGradient>
     <clipPath id="pillInside"><rect width="30" height="40" rx="15"/></clipPath>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
-      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.2"/>
     </filter>
   </defs>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
