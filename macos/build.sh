@@ -15,6 +15,15 @@ cp Resources/* "$app/Contents/Resources/"
 identity=$(security find-identity -v -p codesigning | sed -n 's/.*"\(Apple Development: .*\)"/\1/p' | head -1)
 codesign --force --sign "${identity:--}" "$app"
 
+dmg="../build/YT-Zero.dmg"
+staging="../build/dmg"
+rm -rf "$staging" "$dmg"
+mkdir -p "$staging"
+cp -R "$app" "$staging/"
+ln -s /Applications "$staging/Applications"
+hdiutil create -quiet -volname "YT Zero" -srcfolder "$staging" -fs HFS+ -format UDZO "$dmg"
+rm -rf "$staging"
+
 rm -rf "/Applications/YT Zero.app"
 cp -R "$app" /Applications/
-echo "Installed /Applications/YT Zero.app"
+echo "Installed /Applications/YT Zero.app and built $dmg"
