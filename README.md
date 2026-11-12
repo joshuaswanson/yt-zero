@@ -45,3 +45,5 @@ Rubik by Hubert and Fischer, under the SIL Open Font License (`macos/Resources/O
 ## Icons
 
 [Phosphor Icons](https://phosphoricons.com/) by Helena Zhang and Tobias Fried, under the MIT License (`macos/Resources/Phosphor-LICENSE.txt`).
+
+To publish a new version, commit your changes and run `macos/release.sh 2.1` with the new version number. It builds the app and publishes it as a GitHub release. Installed copies then offer the update.

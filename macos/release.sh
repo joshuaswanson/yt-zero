@@ -1,6 +1,7 @@
 #!/bin/bash
-# Builds the app, signs the DMG for Sparkle, and publishes it with its appcast
-# as the GitHub release for the version in Info.plist.
+# Sets the version, builds the app, signs the DMG for Sparkle, and publishes it
+# with its appcast as a GitHub release. Installed copies then update themselves.
+# Usage: macos/release.sh 2.1
 # The Sparkle signing key lives in the login Keychain (generate_keys).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -10,10 +11,16 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-./build.sh
-
-version="$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Info.plist)"
+version="${1:?Usage: macos/release.sh <version>, for example 2.1}"
+current="$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Info.plist)"
+if [ "$version" != "$current" ]; then
+  build=$(( $(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" Info.plist) + 1 ))
+  /usr/libexec/PlistBuddy -c "Set CFBundleShortVersionString $version" -c "Set CFBundleVersion $build" Info.plist
+  git commit -q -m "Release $version" Info.plist
+fi
 build="$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" Info.plist)"
+
+./build.sh
 tag="v$version"
 repo="joshuaswanson/yt-zero"
 dmg="../build/YT-Zero.dmg"
