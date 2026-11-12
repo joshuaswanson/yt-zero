@@ -36,7 +36,7 @@ The sign-in is saved to `cookies.txt` in the app's Application Support folder, w
 - Playback positions, layout settings, transcripts, and the sign-in are kept in `~/Library/Application Support/YT Zero`.
 - The log is in `~/Library/Logs/YT Zero.log`.
 
-The app is built from the Swift sources in `macos/Sources`. Run `macos/build.sh` again after changing them.
+The app is built from the Swift sources in `macos/Sources`. Run `macos/build.sh` again after changing them. To publish a new version, commit your changes and run `macos/release.sh 2.1` with the new version number. It builds the app and publishes it as a GitHub release. Installed copies then offer the update.
 
 ## Fonts
 
@@ -45,5 +45,3 @@ Rubik by Hubert and Fischer, under the SIL Open Font License (`macos/Resources/O
 ## Icons
 
 [Phosphor Icons](https://phosphoricons.com/) by Helena Zhang and Tobias Fried, under the MIT License (`macos/Resources/Phosphor-LICENSE.txt`).
-
-To publish a new version, commit your changes and run `macos/release.sh 2.1` with the new version number. It builds the app and publishes it as a GitHub release. Installed copies then offer the update.
