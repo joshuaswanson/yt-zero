@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 @main
@@ -18,6 +19,7 @@ struct YTZeroApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { delegate.updater.checkForUpdates(nil) }
                 if library.cookieSource == .app {
                     Button("Sign Out of YouTube") { library.signOut() }
                 } else {
@@ -32,6 +34,8 @@ struct YTZeroApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationWillTerminate(_ notification: Notification) {

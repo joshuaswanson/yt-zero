@@ -14,5 +14,8 @@
   <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>SUFeedURL</key><string>https://github.com/joshuaswanson/yt-zero/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>2KdlHusf8VMEvhZZvVzyUAKoMtflbbzejlq1qwB5DQM=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
 </dict>
 </plist>
