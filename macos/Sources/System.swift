@@ -6,6 +6,7 @@ enum Paths {
     static let downloads = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Movies/YT Zero")
     static let transcripts = support.appendingPathComponent("transcripts")
+    static let comments = support.appendingPathComponent("comments")
     static let cookies = support.appendingPathComponent("cookies.txt")
     static let prefs = support.appendingPathComponent("prefs.json")
     static let otherDownloads = support.appendingPathComponent("other_downloads.json")
@@ -15,7 +16,7 @@ enum Paths {
         .appendingPathComponent("Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies")
 
     static func prepare() {
-        for dir in [support, downloads, transcripts] {
+        for dir in [support, downloads, transcripts, comments] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: support.path)

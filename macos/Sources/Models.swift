@@ -72,6 +72,7 @@ struct Settings: Codable, Equatable {
     var speed: Double = 1
     var captions = false
     var transcript = false
+    var comments = false
     var channel: Channel?
 
     init() {}
@@ -84,6 +85,7 @@ struct Settings: Codable, Equatable {
         speed = (try? c.decodeIfPresent(Double.self, forKey: .speed)) ?? 1
         captions = (try? c.decodeIfPresent(Bool.self, forKey: .captions)) ?? false
         transcript = (try? c.decodeIfPresent(Bool.self, forKey: .transcript)) ?? false
+        comments = (try? c.decodeIfPresent(Bool.self, forKey: .comments)) ?? false
         channel = try? c.decodeIfPresent(Channel.self, forKey: .channel)
         if section == .channel && channel == nil { section = .watchLater }
     }
@@ -111,6 +113,18 @@ struct TranscriptLine: Identifiable {
     let start: Double
     let text: String
     let newSpeaker: Bool
+}
+
+struct Comment: Codable, Identifiable {
+    let id: String
+    let author: String
+    let avatar: String
+    let text: String
+    let likes: Int
+    let age: String
+    let pinned: Bool
+    let byUploader: Bool
+    let hearted: Bool
 }
 
 struct Chapter {

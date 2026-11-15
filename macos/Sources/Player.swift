@@ -49,6 +49,9 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var rows: [TranscriptRow] = []
     @Published private(set) var chapters: [Chapter] = []
     @Published private(set) var currentLine: Int?
+    @Published private(set) var comments: [Comment] = []
+    @Published private(set) var commentsLoaded = false
+    @Published private(set) var commentsFailed = false
     @Published var followPaused = false
     @Published private(set) var flash: Flash?
     @Published private(set) var previewImage: CGImage?
@@ -87,6 +90,9 @@ final class PlayerModel: ObservableObject {
         lines = []
         rows = []
         chapters = []
+        comments = []
+        commentsLoaded = false
+        commentsFailed = false
         previewImage = nil
 
         let generator = AVAssetImageGenerator(asset: item.asset)
@@ -135,6 +141,13 @@ final class PlayerModel: ObservableObject {
             rows = Self.rows(lines: lines, chapters: chapters)
             transcriptLoaded = true
             updateCurrentLine()
+        }
+        Task {
+            let loaded = await background { Comments.load(videoID: video.id) }
+            guard self.video?.id == video.id else { return }
+            comments = loaded ?? []
+            commentsFailed = loaded == nil
+            commentsLoaded = true
         }
     }
 

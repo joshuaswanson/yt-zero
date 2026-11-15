@@ -397,5 +397,6 @@ enum YouTube {
             try? FileManager.default.removeItem(at: Paths.downloads.appendingPathComponent(name))
         }
         try? FileManager.default.removeItem(at: Paths.transcripts.appendingPathComponent("\(videoID).json"))
+        try? FileManager.default.removeItem(at: Paths.comments.appendingPathComponent("\(videoID).json"))
     }
 }

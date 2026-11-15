@@ -27,6 +27,8 @@ struct PlayerView: View {
                 Screen(model: model)
                 if library.settings.transcript {
                     TranscriptPanel(model: model).frame(width: 380)
+                } else if library.settings.comments {
+                    CommentsPanel(model: model).frame(width: 380)
                 }
             }
             .padding(.horizontal, 18)
@@ -155,7 +157,15 @@ struct Controls: View {
             controlButton(.transcript, help: library.settings.transcript ? "Hide transcript" : "Show transcript",
                           active: library.settings.transcript) {
                 library.settings.transcript.toggle()
-                if library.settings.transcript { model.followPaused = false }
+                if library.settings.transcript {
+                    library.settings.comments = false
+                    model.followPaused = false
+                }
+            }
+            controlButton(.comments, help: library.settings.comments ? "Hide comments" : "Show comments",
+                          active: library.settings.comments) {
+                library.settings.comments.toggle()
+                if library.settings.comments { library.settings.transcript = false }
             }
 
             HStack(spacing: 10) {
@@ -457,5 +467,67 @@ struct TranscriptRowView: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .onTapGesture(perform: action)
+    }
+}
+
+// MARK: Comments
+
+struct CommentsPanel: View {
+    @ObservedObject var model: PlayerModel
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                if model.comments.isEmpty {
+                    Text(message).font(rubik(15)).foregroundStyle(Palette.nightSlate)
+                }
+                ForEach(model.comments) { CommentView(comment: $0) }
+            }
+            .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 24)
+        }
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Palette.nightRaised))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var message: String {
+        if !model.commentsLoaded { return "Loading comments..." }
+        return model.commentsFailed ? "Comments did not load." : "This video has no comments."
+    }
+}
+
+struct CommentView: View {
+    let comment: Comment
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RemoteImage(urls: URL(string: comment.avatar).map { [$0] } ?? [])
+                .frame(width: 34, height: 34)
+                .background(Palette.nightHover)
+                .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 5) {
+                if comment.pinned {
+                    Text("Pinned").font(rubik(12, 500)).foregroundStyle(Palette.nightSlate)
+                }
+                HStack(spacing: 8) {
+                    Text(comment.author).font(rubik(13.5, 600)).lineLimit(1)
+                        .foregroundStyle(comment.byUploader ? Palette.night : Palette.nightInk)
+                        .padding(.horizontal, comment.byUploader ? 7 : 0).padding(.vertical, comment.byUploader ? 1 : 0)
+                        .background(Capsule().fill(comment.byUploader ? Palette.nightInk : .clear))
+                    Text(comment.age).font(rubik(12.5)).foregroundStyle(Palette.nightSlate).lineLimit(1)
+                }
+                Text(comment.text).font(rubik(14.5)).lineSpacing(2).foregroundStyle(Palette.nightInk)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    IconView(icon: .likes, size: 14)
+                    Text(comment.likes.formatted(.number.notation(.compactName))).font(rubik(12.5)).monospacedDigit()
+                    if comment.hearted {
+                        Text("Hearted by creator").font(rubik(12.5)).padding(.leading, 8)
+                    }
+                }
+                .foregroundStyle(Palette.nightSlate)
+                .padding(.top, 2)
+            }
+        }
     }
 }

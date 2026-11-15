@@ -438,6 +438,7 @@ final class Library: ObservableObject {
         tokens[id] = nil
         if ok {
             downloads[id] = nil
+            Task { _ = await background { Comments.load(videoID: id) } }
             if pendingPlay == id, playing == nil {
                 pendingPlay = nil
                 play(id)
