@@ -2,20 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>YT Zero</string>
-  <key>CFBundleDisplayName</key><string>YT Zero</string>
-  <key>CFBundleIdentifier</key><string>com.joshuaswanson.yt-zero</string>
-  <key>CFBundleExecutable</key><string>YTZero</string>
-  <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>2.0</string>
-  <key>CFBundleVersion</key><string>2</string>
-  <key>LSMinimumSystemVersion</key><string>15.0</string>
-  <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSPrincipalClass</key><string>NSApplication</string>
-  <key>SUFeedURL</key><string>https://github.com/joshuaswanson/yt-zero/releases/latest/download/appcast.xml</string>
-  <key>SUPublicEDKey</key><string>2KdlHusf8VMEvhZZvVzyUAKoMtflbbzejlq1qwB5DQM=</string>
-  <key>SUEnableAutomaticChecks</key><true/>
+	<key>CFBundleDisplayName</key>
+	<string>YT Zero</string>
+	<key>CFBundleExecutable</key>
+	<string>YTZero</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.joshuaswanson.yt-zero</string>
+	<key>CFBundleName</key>
+	<string>YT Zero</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.video</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/joshuaswanson/yt-zero/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>2KdlHusf8VMEvhZZvVzyUAKoMtflbbzejlq1qwB5DQM=</string>
 </dict>
 </plist>
