@@ -491,7 +491,7 @@ final class Library: ObservableObject {
             play(id)
         } else {
             pendingPlay = id
-            download(id, saveToWatchLater: settings.section != .channel)
+            download(id, saveToWatchLater: false)
         }
     }
 
