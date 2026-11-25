@@ -29,7 +29,13 @@ final class Library: ObservableObject {
     static let channelPageSize = 30
     static let channelVideosMaxAge: TimeInterval = 600
 
-    @Published var settings: Settings { didSet { if settings != oldValue { savePrefs() } } }
+    @Published var settings: Settings {
+        didSet {
+            guard settings != oldValue else { return }
+            savePrefs()
+            if settings.section != oldValue.section || settings.channel != oldValue.channel { lingering = [] }
+        }
+    }
     @Published var positions: [String: Double]
 
     @Published var watchLater: [Video] = []
@@ -53,6 +59,9 @@ final class Library: ObservableObject {
     @Published var otherDownloads: [String: Video]
     @Published var local: [String: URL] = [:]
     @Published var playing: Video?
+    /// Videos removed from the open section stay listed until the section changes,
+    /// so the removal can be undone.
+    @Published private var lingering: [(shownIndex: Int, watchLaterIndex: Int?, video: Video)] = []
     var pendingPlay: String?
 
     private var channelsFetchedAt: Date?
@@ -114,11 +123,30 @@ final class Library: ObservableObject {
         return sortVideos(list, settings.sort(for: section))
     }
 
+    func shownVideos(for section: Section) -> [Video] {
+        var shown = videos(for: section)
+        guard section == settings.section else { return shown }
+        for entry in lingering.sorted(by: { $0.shownIndex < $1.shownIndex })
+        where !shown.contains(where: { $0.id == entry.video.id }) {
+            shown.insert(entry.video, at: min(entry.shownIndex, shown.count))
+        }
+        return shown
+    }
+
+    private func linger(_ id: String) {
+        let section = settings.section
+        guard section == .watchLater || section == .downloaded, !lingering.contains(where: { $0.video.id == id }),
+              let shownIndex = shownVideos(for: section).firstIndex(where: { $0.id == id }) else { return }
+        let video = shownVideos(for: section)[shownIndex]
+        lingering.append((shownIndex, watchLater.firstIndex { $0.id == id }, video))
+    }
+
     func inWatchLater(_ id: String) -> Bool { watchLater.contains { $0.id == id } }
 
     func find(_ id: String) -> Video? {
         let cached = channelCache.values.flatMap(\.videos)
-        return (watchLater + subscriptions + channelPage.videos + cached + Array(otherDownloads.values))
+        return (watchLater + subscriptions + channelPage.videos + cached + Array(otherDownloads.values)
+                + lingering.map(\.video))
             .first { $0.id == id }
     }
 
@@ -330,7 +358,11 @@ final class Library: ObservableObject {
 
     func addToWatchLater(_ id: String) {
         guard let video = find(id), !inWatchLater(id) else { return }
-        watchLater.append(video)
+        if let index = lingering.first(where: { $0.video.id == id })?.watchLaterIndex {
+            watchLater.insert(video, at: min(index, watchLater.count))
+        } else {
+            watchLater.append(video)
+        }
         forgetOtherDownload(id)
         Task {
             if await !withSignIn({ YouTube.addToWatchLater(id) }) { log("[add] failed: \(id)") }
@@ -338,6 +370,7 @@ final class Library: ObservableObject {
     }
 
     func removeFromWatchLater(_ id: String) {
+        linger(id)
         let setID = setVideoIDs.removeValue(forKey: id)
         // A downloaded video stays in Downloaded after it leaves Watch Later.
         if let video = watchLater.first(where: { $0.id == id }), local[id] != nil || downloads[id] != nil {
@@ -358,6 +391,7 @@ final class Library: ObservableObject {
     // MARK: Downloads
 
     func deleteDownload(_ id: String) {
+        linger(id)
         downloads[id] = nil
         forgetOtherDownload(id)
         deleteFiles(id)
@@ -393,6 +427,7 @@ final class Library: ObservableObject {
     }
 
     func cancel(_ id: String) {
+        linger(id)
         if pendingPlay == id { pendingPlay = nil }
         downloads[id] = nil
         tokens[id] = nil

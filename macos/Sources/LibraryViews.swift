@@ -198,7 +198,7 @@ struct LibraryView: View {
 
     var body: some View {
         let section = library.settings.section
-        let videos = library.videos(for: section)
+        let videos = library.shownVideos(for: section)
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -568,7 +568,8 @@ struct VideoCard: View {
                            hoverColor: Palette.caseRed) { library.deleteDownload(id) }
             } else {
                 IconButton(icon: .download, help: "Download", size: 34) {
-                    library.download(id, saveToWatchLater: library.settings.section != .channel)
+                    let section = library.settings.section
+                    library.download(id, saveToWatchLater: section != .channel && section != .downloaded)
                 }
             }
         }
